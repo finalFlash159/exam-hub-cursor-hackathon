@@ -148,4 +148,3 @@ async def get_exam_attempts(
     """Get all attempts for an exam"""
     service = ExamService(db)
     return await service.get_exam_attempts(exam_id, skip, limit)
-

@@ -14,3 +14,6 @@ pydantic-settings==2.1.0
 # Python version compatibility
 python-dotenv==1.0.0
 
+# AI/LLM
+google-generativeai==0.3.2
+

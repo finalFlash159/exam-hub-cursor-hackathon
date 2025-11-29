@@ -25,7 +25,8 @@ class Settings(BaseSettings):
     MAX_UPLOAD_SIZE: int = 10 * 1024 * 1024  # 10MB
     ALLOWED_EXTENSIONS: List[str] = ["pdf", "docx", "doc", "txt", "pptx", "jpg", "jpeg", "png"]
     
-    # AI/GenAI (optional, can be added later)
+    # AI/GenAI
+    GEMINI_API_KEY: str = ""
     GENAI_ENABLED: bool = False
     
     class Config:

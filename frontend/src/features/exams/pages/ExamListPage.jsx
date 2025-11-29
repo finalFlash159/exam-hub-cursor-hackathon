@@ -1,9 +1,9 @@
 /**
  * Exam List Page - Table view with folders and filtering
- * UI-only version with static data
+ * Connected to backend API
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -45,154 +45,12 @@ import { MainLayout, FolderSidebar } from '../../../components/layout';
 import { ROUTES, buildRoute } from '../../../config/routes';
 import { DESIGN_SYSTEM as DS } from '../../../config/designSystem';
 import { format } from 'date-fns';
+import { getExams, deleteExam } from '../../../api';
+import { useApi } from '../../../hooks/useApi';
+import { LoadingSpinner } from '../../../components/common';
 
-// Static mock data
-const mockExams = [
-  {
-    id: 'exam-001',
-    title: 'Bài kiểm tra Toán học cơ bản',
-    subject: 'Toán học',
-    total_questions: 20,
-    duration_minutes: 60,
-    difficulty: 'medium',
-    is_public: true,
-    folder_id: 'folder-001',
-    status: 'published',
-    created_at: '2024-01-15T10:00:00Z'
-  },
-  {
-    id: 'exam-002',
-    title: 'Kiểm tra Tiếng Anh - Unit 1',
-    subject: 'Tiếng Anh',
-    total_questions: 15,
-    duration_minutes: 45,
-    difficulty: 'easy',
-    is_public: true,
-    folder_id: 'folder-002',
-    status: 'published',
-    created_at: '2024-01-14T09:00:00Z'
-  },
-  {
-    id: 'exam-003',
-    title: 'Bài thi Văn học - Văn xuôi',
-    subject: 'Văn học',
-    total_questions: 10,
-    duration_minutes: 90,
-    difficulty: 'hard',
-    is_public: false,
-    folder_id: 'folder-003',
-    status: 'published',
-    created_at: '2024-01-13T14:00:00Z'
-  },
-  {
-    id: 'exam-004',
-    title: 'Kiểm tra Vật lý - Điện học',
-    subject: 'Vật lý',
-    total_questions: 25,
-    duration_minutes: 75,
-    difficulty: 'medium',
-    is_public: true,
-    folder_id: null,
-    status: 'published',
-    created_at: '2024-01-12T11:00:00Z'
-  },
-  {
-    id: 'exam-005',
-    title: 'Bài thi Hóa học - Hữu cơ',
-    subject: 'Hóa học',
-    total_questions: 18,
-    duration_minutes: 60,
-    difficulty: 'hard',
-    is_public: true,
-    folder_id: 'folder-001',
-    status: 'draft',
-    created_at: '2024-01-11T08:00:00Z'
-  },
-  {
-    id: 'exam-006',
-    title: 'Kiểm tra Sinh học - Tế bào',
-    subject: 'Sinh học',
-    total_questions: 22,
-    duration_minutes: 50,
-    difficulty: 'medium',
-    is_public: true,
-    folder_id: null,
-    status: 'published',
-    created_at: '2024-01-10T15:00:00Z'
-  },
-  {
-    id: 'exam-007',
-    title: 'Bài thi Lịch sử - Việt Nam',
-    subject: 'Lịch sử',
-    total_questions: 30,
-    duration_minutes: 90,
-    difficulty: 'hard',
-    is_public: false,
-    folder_id: null,
-    status: 'archived',
-    created_at: '2024-01-09T10:00:00Z'
-  },
-  {
-    id: 'exam-008',
-    title: 'Kiểm tra Địa lý - Địa hình',
-    subject: 'Địa lý',
-    total_questions: 16,
-    duration_minutes: 45,
-    difficulty: 'easy',
-    is_public: true,
-    folder_id: 'folder-002',
-    status: 'published',
-    created_at: '2024-01-08T13:00:00Z'
-  },
-  {
-    id: 'exam-009',
-    title: 'Bài thi GDCD - Đạo đức',
-    subject: 'GDCD',
-    total_questions: 12,
-    duration_minutes: 40,
-    difficulty: 'easy',
-    is_public: true,
-    folder_id: null,
-    status: 'published',
-    created_at: '2024-01-07T09:00:00Z'
-  },
-  {
-    id: 'exam-010',
-    title: 'Kiểm tra Tin học - Excel',
-    subject: 'Tin học',
-    total_questions: 20,
-    duration_minutes: 60,
-    difficulty: 'medium',
-    is_public: true,
-    folder_id: 'folder-001',
-    status: 'published',
-    created_at: '2024-01-06T11:00:00Z'
-  },
-  {
-    id: 'exam-011',
-    title: 'Bài thi Công nghệ - Điện',
-    subject: 'Công nghệ',
-    total_questions: 14,
-    duration_minutes: 50,
-    difficulty: 'easy',
-    is_public: false,
-    folder_id: null,
-    status: 'draft',
-    created_at: '2024-01-05T14:00:00Z'
-  },
-  {
-    id: 'exam-012',
-    title: 'Kiểm tra Thể dục - Lý thuyết',
-    subject: 'Thể dục',
-    total_questions: 8,
-    duration_minutes: 30,
-    difficulty: 'easy',
-    is_public: true,
-    folder_id: null,
-    status: 'published',
-    created_at: '2024-01-04T10:00:00Z'
-  },
-];
+// API call for deleting exams
+const deleteExamApi = (examId) => deleteExam(examId);
 
 const DRAWER_WIDTH = 220;
 
@@ -200,7 +58,7 @@ const ExamListPage = () => {
   const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
   const { t } = useTranslation();
-  
+
   // State
   const [selectedFolder, setSelectedFolder] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
@@ -210,10 +68,31 @@ const ExamListPage = () => {
   const [anchorEl, setAnchorEl] = useState(null);
   const [selectedExam, setSelectedExam] = useState(null);
   const [selectedExams, setSelectedExams] = useState([]);
+  const [exams, setExams] = useState([]);
+  const [totalExams, setTotalExams] = useState(0);
 
-  // Filter exams by folder, search, and status
+  // API hooks
+  const { data: examsData, loading: loadingExams, error: examsError, execute: loadExams } = useApi(getExams);
+  const { execute: deleteExamAction } = useApi(deleteExamApi);
+
+  // Load exams on component mount and when filters change
+  useEffect(() => {
+    loadExams(page * rowsPerPage, rowsPerPage);
+  }, [page, rowsPerPage]);
+
+  // Update local state when API data changes
+  useEffect(() => {
+    if (examsData) {
+      setExams(examsData);
+      // For now, assume we get all exams. In a real implementation,
+      // the API would return pagination metadata
+      setTotalExams(examsData.length);
+    }
+  }, [examsData]);
+
+  // Filter exams by folder, search, and status (client-side filtering)
   const filteredExams = useMemo(() => {
-    return mockExams.filter((exam) => {
+    return exams.filter((exam) => {
       // Folder filter
       if (selectedFolder === 'all') {
         // Show all exams
@@ -224,22 +103,22 @@ const ExamListPage = () => {
         // Show exams in specific folder
         if (exam.folder_id !== selectedFolder) return false;
       }
-      
+
       // Search filter
       if (searchTerm && !exam.title?.toLowerCase().includes(searchTerm.toLowerCase())) {
         return false;
       }
-      
+
       // Status filter
       if (statusFilter !== 'all') {
         if (statusFilter === 'published' && exam.status !== 'published') return false;
         if (statusFilter === 'archived' && exam.status !== 'archived') return false;
         if (statusFilter === 'draft' && exam.status !== 'draft') return false;
       }
-      
+
       return true;
     });
-  }, [selectedFolder, searchTerm, statusFilter]);
+  }, [exams, selectedFolder, searchTerm, statusFilter]);
 
   // Pagination
   const paginatedExams = filteredExams.slice(
@@ -291,9 +170,17 @@ const ExamListPage = () => {
     handleMenuClose();
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (selectedExam && window.confirm('Bạn có chắc muốn xóa đề thi này?')) {
-      enqueueSnackbar('Đã xóa đề thi', { variant: 'success' });
+      try {
+        await deleteExamAction(selectedExam.id);
+        enqueueSnackbar('Đã xóa đề thi thành công', { variant: 'success' });
+        // Reload exams after deletion
+        loadExams(page * rowsPerPage, rowsPerPage);
+        setSelectedExams(selectedExams.filter(id => id !== selectedExam.id));
+      } catch (error) {
+        // Error is already handled by the useApi hook
+      }
     }
     handleMenuClose();
   };
@@ -312,10 +199,18 @@ const ExamListPage = () => {
     handleMenuClose();
   };
 
-  const handleBulkDelete = () => {
+  const handleBulkDelete = async () => {
     if (selectedExams.length > 0 && window.confirm(`Bạn có chắc muốn xóa ${selectedExams.length} đề thi?`)) {
-      enqueueSnackbar(`Đã xóa ${selectedExams.length} đề thi`, { variant: 'success' });
-      setSelectedExams([]);
+      try {
+        // Delete exams one by one (in a real app, you'd have a bulk delete endpoint)
+        await Promise.all(selectedExams.map(examId => deleteExamAction(examId)));
+        enqueueSnackbar(`Đã xóa ${selectedExams.length} đề thi thành công`, { variant: 'success' });
+        setSelectedExams([]);
+        // Reload exams after deletion
+        loadExams(page * rowsPerPage, rowsPerPage);
+      } catch (error) {
+        // Error is already handled by the useApi hook
+      }
     }
   };
 
@@ -532,7 +427,21 @@ const ExamListPage = () => {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {paginatedExams.length === 0 ? (
+                    {loadingExams ? (
+                      <TableRow>
+                        <TableCell colSpan={8} align="center" sx={{ py: 4 }}>
+                          <LoadingSpinner />
+                        </TableCell>
+                      </TableRow>
+                    ) : examsError ? (
+                      <TableRow>
+                        <TableCell colSpan={8} align="center" sx={{ py: 4 }}>
+                          <Typography color="error" sx={{ fontSize: DS.typography.bodyMedium }}>
+                            {examsError}
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                    ) : paginatedExams.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={8} align="center" sx={{ py: 4 }}>
                           <Typography color="text.secondary" sx={{ fontSize: DS.typography.bodyMedium, mb: 1 }}>

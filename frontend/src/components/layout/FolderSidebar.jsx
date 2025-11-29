@@ -1,9 +1,9 @@
 /**
  * FolderSidebar Component
- * Displays folder navigation with static data (no API calls)
+ * Displays folder navigation with API integration
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Box,
@@ -37,8 +37,25 @@ import {
   ExpandMore,
 } from '@mui/icons-material';
 import { useSnackbar } from 'notistack';
+import { getFolders, createFolder, updateFolder, deleteFolder } from '../../api';
+import { useApi } from '../../hooks/useApi';
+import { LoadingSpinner } from '../common';
 
-// Static folder data
+// API functions
+const getFoldersApi = (skip, limit) => getFolders(skip, limit);
+const createFolderApi = (folderData) => createFolder(folderData);
+const updateFolderApi = (folderId, folderData) => updateFolder(folderId, folderData);
+const deleteFolderApi = (folderId) => deleteFolder(folderId);
+
+// Default "All exams" folder
+const defaultAllFolder = {
+  id: 'all',
+  name: 'Tất cả đề thi',
+  count: 0,
+  isDefault: true,
+};
+
+// Mock folders for now (will be replaced with API data)
 const mockFolders = [
   {
     id: 'all',
@@ -87,9 +104,27 @@ const FolderSidebar = ({
   const { enqueueSnackbar } = useSnackbar();
   const { t } = useTranslation();
 
-  // State - using static data
-  const [folders] = useState(mockFolders);
+  // API hooks
+  const { data: apiFolders, loading: loadingFolders, execute: loadFolders } = useApi(getFoldersApi);
+  const { execute: createFolderAction } = useApi(createFolderApi);
+  const { execute: updateFolderAction } = useApi(updateFolderApi);
+  const { execute: deleteFolderAction } = useApi(deleteFolderApi);
+
+  // State
+  const [folders, setFolders] = useState([defaultAllFolder, ...mockFolders.slice(1)]); // Start with mock data
   const [expandedFolders, setExpandedFolders] = useState(new Set(['all']));
+
+  // Load folders on component mount
+  useEffect(() => {
+    loadFolders(0, 100);
+  }, [loadFolders]);
+
+  // Update folders when API data changes
+  useEffect(() => {
+    if (apiFolders) {
+      setFolders([defaultAllFolder, ...apiFolders]);
+    }
+  }, [apiFolders]);
 
   // Dialog states
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -135,16 +170,30 @@ const FolderSidebar = ({
   };
 
   // Create folder (shows success but doesn't persist)
-  const handleCreateFolder = () => {
+  const handleCreateFolder = async () => {
     if (!newFolderName.trim()) {
       enqueueSnackbar('Tên thư mục không được để trống', { variant: 'warning' });
       return;
     }
 
-    enqueueSnackbar('Đã tạo thư mục mới', { variant: 'success' });
-    setCreateDialogOpen(false);
-    setNewFolderName('');
-    setNewFolderColor('#3b82f6');
+    try {
+      const folderData = {
+        name: newFolderName.trim(),
+        color: newFolderColor,
+      };
+
+      await createFolderAction(folderData);
+      enqueueSnackbar('Đã tạo thư mục mới', { variant: 'success' });
+
+      // Reload folders
+      loadFolders(0, 100);
+
+      setCreateDialogOpen(false);
+      setNewFolderName('');
+      setNewFolderColor('#3b82f6');
+    } catch (error) {
+      // Error is already handled by the useApi hook
+    }
   };
 
   // Rename folder (shows success but doesn't persist)
@@ -163,12 +212,22 @@ const FolderSidebar = ({
   };
 
   // Delete folder (shows success but doesn't persist)
-  const handleDeleteFolder = () => {
+  const handleDeleteFolder = async () => {
     if (!selectedFolderForMenu || selectedFolderForMenu.isDefault) return;
     const confirmMessage = 'Xóa thư mục này sẽ chuyển tất cả bài thi vào thư mục gốc. Bạn có chắc chắn?';
     if (!window.confirm(confirmMessage)) return;
-    enqueueSnackbar('Đã xóa thư mục', { variant: 'success' });
-    handleFolderMenuClose();
+
+    try {
+      await deleteFolderAction(selectedFolderForMenu.id);
+      enqueueSnackbar('Đã xóa thư mục', { variant: 'success' });
+
+      // Reload folders
+      loadFolders(0, 100);
+
+      handleFolderMenuClose();
+    } catch (error) {
+      // Error is already handled by the useApi hook
+    }
   };
 
   // Render folder item

@@ -1,6 +1,6 @@
 /**
  * Exam Create Page - Multi-step wizard
- * UI-only version with static data
+ * Connected to backend API
  */
 
 import React, { useState } from 'react';
@@ -44,70 +44,25 @@ import { useSnackbar } from 'notistack';
 import { MainLayout } from '../../../components/layout';
 import { ROUTES } from '../../../config/routes';
 import { DESIGN_SYSTEM as DS } from '../../../config/designSystem';
+import { createExam, addQuestion } from '../../../api';
+import { useApi } from '../../../hooks/useApi';
 
-// Static mock data for generated questions
-const mockGeneratedQuestions = [
-  {
-    id: 'q-001',
-    question_text: 'Tính tổng: 2 + 2 = ?',
-    question_type: 'multiple_choice',
-    options: ['2', '3', '4', '5'],
-    correct_answer: '4',
-    explanation: 'Phép cộng cơ bản: 2 cộng 2 bằng 4',
-    difficulty: 'easy',
-    points: 1
-  },
-  {
-    id: 'q-002',
-    question_text: 'Tính tích: 3 × 4 = ?',
-    question_type: 'multiple_choice',
-    options: ['10', '11', '12', '13'],
-    correct_answer: '12',
-    explanation: 'Phép nhân: 3 nhân 4 bằng 12',
-    difficulty: 'easy',
-    points: 1
-  },
-  {
-    id: 'q-003',
-    question_text: 'Giải phương trình: x + 5 = 10',
-    question_type: 'multiple_choice',
-    options: ['x = 3', 'x = 4', 'x = 5', 'x = 6'],
-    correct_answer: 'x = 5',
-    explanation: 'x = 10 - 5 = 5',
-    difficulty: 'medium',
-    points: 2
-  },
-  {
-    id: 'q-004',
-    question_text: 'Tính diện tích hình chữ nhật có chiều dài 5cm và chiều rộng 3cm',
-    question_type: 'multiple_choice',
-    options: ['8 cm²', '15 cm²', '16 cm²', '20 cm²'],
-    correct_answer: '15 cm²',
-    explanation: 'Diện tích = dài × rộng = 5 × 3 = 15 cm²',
-    difficulty: 'medium',
-    points: 2
-  },
-  {
-    id: 'q-005',
-    question_text: 'Tính đạo hàm của hàm số f(x) = x²',
-    question_type: 'multiple_choice',
-    options: ['x', '2x', 'x²', '2x²'],
-    correct_answer: '2x',
-    explanation: 'Đạo hàm của x² là 2x',
-    difficulty: 'hard',
-    points: 3
-  },
-];
+// API functions
+const createExamApi = (examData) => createExam(examData);
+const addQuestionApi = (examId, questionData) => addQuestion(examId, questionData);
 
 const ExamCreatePage = () => {
   const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
   const { t } = useTranslation();
-  
+
   const steps = ['Chọn phương pháp', 'Cấu hình đề thi', 'Xác nhận tạo'];
-  
+
   const [activeStep, setActiveStep] = useState(0);
-  const [loading, setLoading] = useState(false);
+
+  // API hooks
+  const { execute: createExamAction, loading: creatingExam } = useApi(createExamApi);
+  const { execute: addQuestionAction, loading: addingQuestion } = useApi(addQuestionApi);
   
   // Step 1: Method selection
   const [method, setMethod] = useState(''); // 'file', 'text', 'manual'
@@ -136,14 +91,10 @@ const ExamCreatePage = () => {
   };
 
   const handleGenerateQuestions = async () => {
-    setLoading(true);
-    // Simulate AI generation delay
-    setTimeout(() => {
-      setGeneratedQuestions(mockGeneratedQuestions);
-      setHasGeneratedQuestions(true);
-      setLoading(false);
-      enqueueSnackbar('Đã tạo câu hỏi thành công!', { variant: 'success' });
-    }, 2000);
+    // For now, show a message that AI generation is not implemented
+    // In a real implementation, this would call an AI service API
+    enqueueSnackbar('Tính năng tạo câu hỏi bằng AI sẽ được triển khai sau!', { variant: 'info' });
+    setHasGeneratedQuestions(true);
   };
 
   const handleDeleteQuestion = (questionId) => {
@@ -195,14 +146,44 @@ const ExamCreatePage = () => {
     setActiveStep((prev) => prev - 1);
   };
 
-  const handleCreateExam = () => {
-    setLoading(true);
-    // Simulate creation delay
-    setTimeout(() => {
-      setLoading(false);
+  const handleCreateExam = async () => {
+    try {
+      // Prepare exam data
+      const examData = {
+        title: examTitle,
+        description: examDescription,
+        subject,
+        difficulty,
+        duration_minutes: timeLimit,
+        total_questions: numQuestions,
+        is_public: true, // Default to public
+      };
+
+      // Create the exam
+      const createdExam = await createExamAction(examData);
+
+      // Add questions if we have generated questions
+      if (hasGeneratedQuestions && generatedQuestions.length > 0) {
+        await Promise.all(
+          generatedQuestions.map(question =>
+            addQuestionAction(createdExam.id, {
+              question_text: question.question_text,
+              question_type: question.question_type,
+              options: question.options,
+              correct_answer: question.correct_answer,
+              explanation: question.explanation,
+              difficulty: question.difficulty,
+              points: question.points,
+            })
+          )
+        );
+      }
+
       enqueueSnackbar('Đã tạo đề thi thành công!', { variant: 'success' });
       navigate(ROUTES.EXAMS);
-    }, 1000);
+    } catch (error) {
+      // Error is already handled by the useApi hook
+    }
   };
 
   const renderStep1 = () => (
@@ -680,12 +661,12 @@ const ExamCreatePage = () => {
         variant="contained"
         size="large"
         onClick={handleCreateExam}
-        disabled={loading}
-        startIcon={loading ? <CircularProgress size={20} /> : null}
+        disabled={creatingExam || addingQuestion}
+        startIcon={(creatingExam || addingQuestion) ? <CircularProgress size={20} /> : null}
         fullWidth
         sx={{ py: 1.5 }}
       >
-        {loading ? 'Đang tạo đề thi...' : 'Tạo đề thi'}
+        {(creatingExam || addingQuestion) ? 'Đang tạo đề thi...' : 'Tạo đề thi'}
       </Button>
     </Box>
   );

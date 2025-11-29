@@ -1,9 +1,9 @@
 /**
  * Dashboard Page - Main dashboard with statistics and recent exams
- * UI-only version with static data
+ * Connected to backend API
  */
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -34,78 +34,66 @@ import { MainLayout } from '../../../components/layout';
 import { ROUTES, buildRoute } from '../../../config/routes';
 import { DESIGN_SYSTEM as DS } from '../../../config/designSystem';
 import { format } from 'date-fns';
+import { getDashboardStats, getExams } from '../../../api';
+import { LoadingSpinner } from '../../../components/common';
 
-// Static mock data
-const mockDashboardStats = {
-  total_exams: 12,
-  completed_exams: 8,
-  average_score: 85.5,
-  in_progress_exams: 2,
-  uploaded_files_count: 5,
-  passed_exams: 7,
-  highest_score: 95.0
-};
-
-const mockRecentExams = [
-  {
-    id: 'exam-001',
-    title: 'Bài kiểm tra Toán học cơ bản',
-    subject: 'Toán học',
-    total_questions: 20,
-    duration_minutes: 60,
-    difficulty: 'medium',
-    created_at: '2024-01-15T10:00:00Z',
-    status: 'published'
-  },
-  {
-    id: 'exam-002',
-    title: 'Kiểm tra Tiếng Anh - Unit 1',
-    subject: 'Tiếng Anh',
-    total_questions: 15,
-    duration_minutes: 45,
-    difficulty: 'easy',
-    created_at: '2024-01-14T09:00:00Z',
-    status: 'published'
-  },
-  {
-    id: 'exam-003',
-    title: 'Bài thi Văn học - Văn xuôi',
-    subject: 'Văn học',
-    total_questions: 10,
-    duration_minutes: 90,
-    difficulty: 'hard',
-    created_at: '2024-01-13T14:00:00Z',
-    status: 'published'
-  },
-  {
-    id: 'exam-004',
-    title: 'Kiểm tra Vật lý - Điện học',
-    subject: 'Vật lý',
-    total_questions: 25,
-    duration_minutes: 75,
-    difficulty: 'medium',
-    created_at: '2024-01-12T11:00:00Z',
-    status: 'published'
-  },
-  {
-    id: 'exam-005',
-    title: 'Bài thi Hóa học - Hữu cơ',
-    subject: 'Hóa học',
-    total_questions: 18,
-    duration_minutes: 60,
-    difficulty: 'hard',
-    created_at: '2024-01-11T08:00:00Z',
-    status: 'published'
-  },
-];
-
-const mockUser = {
-  full_name: 'Demo User',
+// Default fallback data
+const defaultDashboardStats = {
+  total_exams: 0,
+  completed_exams: 0,
+  average_score: 0,
+  in_progress_exams: 0,
+  uploaded_files_count: 0,
+  passed_exams: 0,
+  highest_score: 0
 };
 
 const DashboardPage = () => {
   const navigate = useNavigate();
   const { t } = useTranslation();
+
+  // State for dashboard data
+  const [dashboardStats, setDashboardStats] = useState(defaultDashboardStats);
+  const [recentExams, setRecentExams] = useState([]);
+  const [loadingStats, setLoadingStats] = useState(true);
+  const [loadingExams, setLoadingExams] = useState(true);
+  const [statsError, setStatsError] = useState(null);
+  const [examsError, setExamsError] = useState(null);
+
+  // Load dashboard data on component mount
+  useEffect(() => {
+    const loadDashboardData = async () => {
+      try {
+        // Load dashboard statistics
+        setLoadingStats(true);
+        const stats = await getDashboardStats();
+        setDashboardStats(stats);
+        setStatsError(null);
+      } catch (error) {
+        console.error('Failed to load dashboard stats:', error);
+        setStatsError('Không thể tải dữ liệu thống kê');
+        setDashboardStats(defaultDashboardStats);
+      } finally {
+        setLoadingStats(false);
+      }
+
+      try {
+        // Load recent exams (limit to 5)
+        setLoadingExams(true);
+        const exams = await getExams(0, 5);
+        setRecentExams(exams);
+        setExamsError(null);
+      } catch (error) {
+        console.error('Failed to load recent exams:', error);
+        setExamsError('Không thể tải danh sách đề thi');
+        setRecentExams([]);
+      } finally {
+        setLoadingExams(false);
+      }
+    };
+
+    loadDashboardData();
+  }, []);
 
   const getCurrentDate = () => {
     return format(new Date(), 'EEEE, dd MMMM yyyy', { locale: 'vi' });
@@ -150,7 +138,7 @@ const DashboardPage = () => {
               mb: 0.5,
             }}
           >
-            Xin chào, {mockUser.full_name}
+            Xin chào, Người dùng
           </Typography>
           <Typography
             variant="body2"
@@ -373,136 +361,146 @@ const DashboardPage = () => {
           >
             {t('dashboard.overview') || 'Tổng quan'}
           </Typography>
-          <Grid container spacing={2}>
-            <Grid item xs={6} md={3}>
-              <Paper
-                sx={{
-                  p: 2,
-                  border: '1px solid',
-                  borderColor: 'divider',
-                  borderRadius: DS.borderRadius.regular,
-                  bgcolor: 'background.paper',
-                }}
-              >
-                <Typography
-                  variant="body2"
+          {loadingStats ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
+              <LoadingSpinner />
+            </Box>
+          ) : statsError ? (
+            <Typography color="error" sx={{ textAlign: 'center', p: 2 }}>
+              {statsError}
+            </Typography>
+          ) : (
+            <Grid container spacing={2}>
+              <Grid item xs={6} md={3}>
+                <Paper
                   sx={{
-                    color: 'text.secondary',
-                    fontSize: DS.typography.bodySmall,
-                    mb: 1,
+                    p: 2,
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    borderRadius: DS.borderRadius.regular,
+                    bgcolor: 'background.paper',
                   }}
                 >
-                  {t('dashboard.totalExams') || 'Tổng số đề thi'}
-                </Typography>
-                <Typography
-                  variant="h4"
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color: 'text.secondary',
+                      fontSize: DS.typography.bodySmall,
+                      mb: 1,
+                    }}
+                  >
+                    {t('dashboard.totalExams') || 'Tổng số đề thi'}
+                  </Typography>
+                  <Typography
+                    variant="h4"
+                    sx={{
+                      fontWeight: 700,
+                      color: 'text.primary',
+                      fontSize: DS.typography.pageTitle,
+                    }}
+                  >
+                    {dashboardStats.total_exams || 0}
+                  </Typography>
+                </Paper>
+              </Grid>
+              <Grid item xs={6} md={3}>
+                <Paper
                   sx={{
-                    fontWeight: 700,
-                    color: 'text.primary',
-                    fontSize: DS.typography.pageTitle,
+                    p: 2,
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    borderRadius: DS.borderRadius.regular,
+                    bgcolor: 'background.paper',
                   }}
                 >
-                  {mockDashboardStats.total_exams}
-                </Typography>
-              </Paper>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color: 'text.secondary',
+                      fontSize: DS.typography.bodySmall,
+                      mb: 1,
+                    }}
+                  >
+                    {t('dashboard.completed') || 'Đã hoàn thành'}
+                  </Typography>
+                  <Typography
+                    variant="h4"
+                    sx={{
+                      fontWeight: 700,
+                      color: 'text.primary',
+                      fontSize: DS.typography.pageTitle,
+                    }}
+                  >
+                    {dashboardStats.completed_exams || 0}
+                  </Typography>
+                </Paper>
+              </Grid>
+              <Grid item xs={6} md={3}>
+                <Paper
+                  sx={{
+                    p: 2,
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    borderRadius: DS.borderRadius.regular,
+                    bgcolor: 'background.paper',
+                  }}
+                >
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color: 'text.secondary',
+                      fontSize: DS.typography.bodySmall,
+                      mb: 1,
+                    }}
+                  >
+                    {t('dashboard.averageScore') || 'Điểm trung bình'}
+                  </Typography>
+                  <Typography
+                    variant="h4"
+                    sx={{
+                      fontWeight: 700,
+                      color: 'text.primary',
+                      fontSize: DS.typography.pageTitle,
+                    }}
+                  >
+                    {dashboardStats.average_score ? `${dashboardStats.average_score}%` : '0%'}
+                  </Typography>
+                </Paper>
+              </Grid>
+              <Grid item xs={6} md={3}>
+                <Paper
+                  sx={{
+                    p: 2,
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    borderRadius: DS.borderRadius.regular,
+                    bgcolor: 'background.paper',
+                  }}
+                >
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color: 'text.secondary',
+                      fontSize: DS.typography.bodySmall,
+                      mb: 1,
+                    }}
+                  >
+                    Đang làm
+                  </Typography>
+                  <Typography
+                    variant="h4"
+                    sx={{
+                      fontWeight: 700,
+                      color: 'text.primary',
+                      fontSize: DS.typography.pageTitle,
+                    }}
+                  >
+                    {dashboardStats.in_progress_exams || 0}
+                  </Typography>
+                </Paper>
+              </Grid>
             </Grid>
-            <Grid item xs={6} md={3}>
-              <Paper
-                sx={{
-                  p: 2,
-                  border: '1px solid',
-                  borderColor: 'divider',
-                  borderRadius: DS.borderRadius.regular,
-                  bgcolor: 'background.paper',
-                }}
-              >
-                <Typography
-                  variant="body2"
-                  sx={{
-                    color: 'text.secondary',
-                    fontSize: DS.typography.bodySmall,
-                    mb: 1,
-                  }}
-                >
-                  {t('dashboard.completed') || 'Đã hoàn thành'}
-                </Typography>
-                <Typography
-                  variant="h4"
-                  sx={{
-                    fontWeight: 700,
-                    color: 'text.primary',
-                    fontSize: DS.typography.pageTitle,
-                  }}
-                >
-                  {mockDashboardStats.completed_exams}
-                </Typography>
-              </Paper>
-            </Grid>
-            <Grid item xs={6} md={3}>
-              <Paper
-                sx={{
-                  p: 2,
-                  border: '1px solid',
-                  borderColor: 'divider',
-                  borderRadius: DS.borderRadius.regular,
-                  bgcolor: 'background.paper',
-                }}
-              >
-                <Typography
-                  variant="body2"
-                  sx={{
-                    color: 'text.secondary',
-                    fontSize: DS.typography.bodySmall,
-                    mb: 1,
-                  }}
-                >
-                  {t('dashboard.averageScore') || 'Điểm trung bình'}
-                </Typography>
-                <Typography
-                  variant="h4"
-                  sx={{
-                    fontWeight: 700,
-                    color: 'text.primary',
-                    fontSize: DS.typography.pageTitle,
-                  }}
-                >
-                  {mockDashboardStats.average_score}%
-                </Typography>
-              </Paper>
-            </Grid>
-            <Grid item xs={6} md={3}>
-              <Paper
-                sx={{
-                  p: 2,
-                  border: '1px solid',
-                  borderColor: 'divider',
-                  borderRadius: DS.borderRadius.regular,
-                  bgcolor: 'background.paper',
-                }}
-              >
-                <Typography
-                  variant="body2"
-                  sx={{
-                    color: 'text.secondary',
-                    fontSize: DS.typography.bodySmall,
-                    mb: 1,
-                  }}
-                >
-                  Đang làm
-                </Typography>
-                <Typography
-                  variant="h4"
-                  sx={{
-                    fontWeight: 700,
-                    color: 'text.primary',
-                    fontSize: DS.typography.pageTitle,
-                  }}
-                >
-                  {mockDashboardStats.in_progress_exams}
-                </Typography>
-              </Paper>
-            </Grid>
-          </Grid>
+          )}
         </Box>
 
         {/* Recent Exams Table */}
@@ -578,7 +576,30 @@ const DashboardPage = () => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {mockRecentExams.map((exam) => (
+                {loadingExams ? (
+                  <TableRow>
+                    <TableCell colSpan={7} align="center" sx={{ py: 4 }}>
+                      <LoadingSpinner size={24} />
+                    </TableCell>
+                  </TableRow>
+                ) : examsError ? (
+                  <TableRow>
+                    <TableCell colSpan={7} align="center" sx={{ py: 4 }}>
+                      <Typography color="error" sx={{ fontSize: DS.typography.bodyMedium }}>
+                        {examsError}
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
+                ) : recentExams.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} align="center" sx={{ py: 4 }}>
+                      <Typography color="text.secondary" sx={{ fontSize: DS.typography.bodyMedium }}>
+                        Chưa có đề thi nào
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  recentExams.map((exam) => (
                   <TableRow
                     key={exam.id}
                     sx={{
@@ -673,7 +694,8 @@ const DashboardPage = () => {
                       </Box>
                     </TableCell>
                   </TableRow>
-                ))}
+                  ))
+                )}
               </TableBody>
             </Table>
           </TableContainer>

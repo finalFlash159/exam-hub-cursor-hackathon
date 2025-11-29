@@ -1,6 +1,6 @@
 /**
  * Exam Result Page - Shows exam results with score and detailed review
- * UI-only version with static data
+ * Connected to backend API
  */
 
 import React, { useState, useEffect } from 'react';
@@ -36,9 +36,15 @@ import { MainLayout } from '../../../components/layout';
 import { ROUTES, buildRoute } from '../../../config/routes';
 import { DESIGN_SYSTEM as DS } from '../../../config/designSystem';
 import { format } from 'date-fns';
+import { getAttempt } from '../../../api';
+import { useApi } from '../../../hooks/useApi';
+import { LoadingSpinner } from '../../../components/common';
 
-// Static mock exam data (same as ExamTakePage)
-const mockExamData = {
+// API functions
+const getAttemptApi = (attemptId) => getAttempt(attemptId);
+
+// Mock attempt data for now (will be replaced with actual API call)
+const mockAttemptData = {
   id: 'exam-001',
   title: 'Bài kiểm tra Toán học cơ bản',
   subject: 'Toán học',
@@ -132,17 +138,26 @@ const ExamResultPage = () => {
   const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
 
+  // API hooks
+  const { data: attemptData, loading: loadingAttempt, error: attemptError, execute: loadAttempt } = useApi(getAttemptApi);
+
   const [result, setResult] = useState(null);
   const [showConfetti, setShowConfetti] = useState(false);
   const [windowSize, setWindowSize] = useState({ width: 0, height: 0 });
 
   useEffect(() => {
-    // Get stored answers from localStorage
+    // Try to get attempt ID from localStorage first (set by ExamTakePage)
     const storedResult = localStorage.getItem(`exam_result_${examId}`);
-    
+
     if (storedResult) {
       const parsedResult = JSON.parse(storedResult);
-      calculateResult(parsedResult.answers, parsedResult.time_taken);
+      if (parsedResult.attempt_id) {
+        // Load attempt data from API
+        loadAttempt(parsedResult.attempt_id);
+      } else {
+        // Fallback to local calculation if no attempt ID
+        calculateResult(parsedResult.answers, parsedResult.time_taken);
+      }
     } else {
       // Fallback: generate mock result
       const mockAnswers = {
@@ -163,6 +178,33 @@ const ExamResultPage = () => {
     // Set window size for confetti
     setWindowSize({ width: window.innerWidth, height: window.innerHeight });
   }, [examId]);
+
+  // Handle attempt data when loaded from API
+  useEffect(() => {
+    if (attemptData) {
+      // Process the attempt data from API
+      const score = attemptData.score || 0;
+      const totalQuestions = attemptData.total_questions || 0;
+      const correctAnswers = attemptData.correct_answers || 0;
+      const timeTaken = attemptData.time_taken_seconds || 0;
+
+      const percentage = totalQuestions > 0 ? Math.round((correctAnswers / totalQuestions) * 100) : 0;
+
+      setResult({
+        score: percentage,
+        correctAnswers,
+        totalQuestions,
+        timeTaken,
+        passed: percentage >= 60, // Assume 60% is passing
+      });
+
+      // Show confetti for good scores
+      if (percentage >= 80) {
+        setShowConfetti(true);
+        setTimeout(() => setShowConfetti(false), 5000);
+      }
+    }
+  }, [attemptData]);
 
   const calculateResult = (answers, timeTaken) => {
     let score = 0;
@@ -260,6 +302,43 @@ const ExamResultPage = () => {
       <MainLayout>
         <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '50vh' }}>
           <CircularProgress />
+        </Box>
+      </MainLayout>
+    );
+  }
+
+  // Show loading state while fetching attempt data
+  if (loadingAttempt) {
+    return (
+      <MainLayout>
+        <Box sx={{
+          bgcolor: 'background.default',
+          minHeight: '100vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}>
+          <LoadingSpinner />
+        </Box>
+      </MainLayout>
+    );
+  }
+
+  // Show error state if attempt failed to load
+  if (attemptError && !result) {
+    return (
+      <MainLayout>
+        <Box sx={{
+          bgcolor: 'background.default',
+          minHeight: '100vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          p: 4
+        }}>
+          <Typography color="error" align="center">
+            {attemptError}
+          </Typography>
         </Box>
       </MainLayout>
     );

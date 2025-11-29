@@ -1,6 +1,6 @@
 /**
  * Exam Take Page - Full-screen exam interface with timer
- * UI-only version with static data
+ * Connected to backend API
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -35,120 +35,92 @@ import { useSnackbar } from 'notistack';
 import { MainLayout } from '../../../components/layout';
 import { ROUTES, buildRoute } from '../../../config/routes';
 import { DESIGN_SYSTEM as DS } from '../../../config/designSystem';
+import { getExam, startAttempt, submitAttempt } from '../../../api';
+import { useApi } from '../../../hooks/useApi';
+import { LoadingSpinner } from '../../../components/common';
 
-// Static mock exam data
-const mockExamData = {
-  id: 'exam-001',
-  title: 'Bài kiểm tra Toán học cơ bản',
-  subject: 'Toán học',
-  duration_minutes: 60,
-  questions: [
-    {
-      id: 'q-001',
-      question_text: 'Tính tổng: 2 + 2 = ?',
-      options: ['2', '3', '4', '5'],
-      correct_answer: '4',
-      points: 1
-    },
-    {
-      id: 'q-002',
-      question_text: 'Tính tích: 3 × 4 = ?',
-      options: ['10', '11', '12', '13'],
-      correct_answer: '12',
-      points: 1
-    },
-    {
-      id: 'q-003',
-      question_text: 'Giải phương trình: x + 5 = 10',
-      options: ['x = 3', 'x = 4', 'x = 5', 'x = 6'],
-      correct_answer: 'x = 5',
-      points: 2
-    },
-    {
-      id: 'q-004',
-      question_text: 'Tính diện tích hình chữ nhật có chiều dài 5cm và chiều rộng 3cm',
-      options: ['8 cm²', '15 cm²', '16 cm²', '20 cm²'],
-      correct_answer: '15 cm²',
-      points: 2
-    },
-    {
-      id: 'q-005',
-      question_text: 'Tính đạo hàm của hàm số f(x) = x²',
-      options: ['x', '2x', 'x²', '2x²'],
-      correct_answer: '2x',
-      points: 3
-    },
-    {
-      id: 'q-006',
-      question_text: 'Tính tích phân ∫x dx',
-      options: ['x²/2', 'x²', 'x', '2x'],
-      correct_answer: 'x²/2',
-      points: 3
-    },
-    {
-      id: 'q-007',
-      question_text: 'Tìm giá trị của sin(90°)',
-      options: ['0', '0.5', '1', '√2/2'],
-      correct_answer: '1',
-      points: 2
-    },
-    {
-      id: 'q-008',
-      question_text: 'Tính logarit cơ số 10 của 100',
-      options: ['1', '2', '10', '100'],
-      correct_answer: '2',
-      points: 2
-    },
-    {
-      id: 'q-009',
-      question_text: 'Tính căn bậc hai của 16',
-      options: ['2', '4', '8', '16'],
-      correct_answer: '4',
-      points: 1
-    },
-    {
-      id: 'q-010',
-      question_text: 'Tính giá trị của 2³',
-      options: ['4', '6', '8', '9'],
-      correct_answer: '8',
-      points: 1
-    },
-  ]
-};
+// API functions
+const getExamApi = (examId) => getExam(examId, false);
+const startAttemptApi = (examId, attemptData) => startAttempt(examId, attemptData);
+const submitAttemptApi = (attemptId, submission) => submitAttempt(attemptId, submission);
 
 const ExamTakePage = () => {
   const { id: examId } = useParams();
   const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
 
-  const [exam] = useState(mockExamData);
-  const [questions] = useState(mockExamData.questions);
+  // API hooks
+  const { data: exam, loading: loadingExam, error: examError, execute: loadExam } = useApi(getExamApi);
+  const { execute: startAttemptAction } = useApi(startAttemptApi);
+  const { execute: submitAttemptAction, loading: submittingAttempt } = useApi(submitAttemptApi);
+
+  // State
+  const [questions, setQuestions] = useState([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState({});
   const [flaggedQuestions, setFlaggedQuestions] = useState(new Set());
-  const [timeRemaining, setTimeRemaining] = useState(mockExamData.duration_minutes * 60);
-  const [examStarted, setExamStarted] = useState(true);
-  const [startTime] = useState(Date.now());
+  const [timeRemaining, setTimeRemaining] = useState(0);
+  const [examStarted, setExamStarted] = useState(false);
+  const [startTime, setStartTime] = useState(null);
   const [submitDialogOpen, setSubmitDialogOpen] = useState(false);
+  const [attemptId, setAttemptId] = useState(null);
 
-  const handleSubmit = useCallback(() => {
-    const timeTaken = Math.floor((Date.now() - startTime) / 1000);
-    
-    // Store answers in localStorage for result page
-    const examResult = {
-      exam_id: examId,
-      exam_title: exam.title,
-      answers,
-      time_taken: timeTaken,
-      submitted_at: new Date().toISOString(),
-    };
-    localStorage.setItem(`exam_result_${examId}`, JSON.stringify(examResult));
-    
-    enqueueSnackbar('Đã nộp bài thành công!', { variant: 'success' });
-    
-    // Navigate to result page
-    navigate(buildRoute(ROUTES.EXAM_RESULT, { id: examId }));
-  }, [startTime, examId, answers, exam.title, enqueueSnackbar, navigate]);
+  // Load exam data on component mount
+  useEffect(() => {
+    loadExam(examId);
+  }, [examId, loadExam]);
+
+  // Initialize exam when data is loaded
+  useEffect(() => {
+    if (exam && !examStarted) {
+      setQuestions(exam.questions || []);
+      setTimeRemaining(exam.duration_minutes * 60);
+      setExamStarted(true);
+      setStartTime(Date.now());
+    }
+  }, [exam, examStarted]);
+
+  const handleSubmit = useCallback(async () => {
+    if (!attemptId) {
+      enqueueSnackbar('Lỗi: Không thể nộp bài. Vui lòng thử lại.', { variant: 'error' });
+      return;
+    }
+
+    try {
+      const timeTaken = Math.floor((Date.now() - startTime) / 1000);
+
+      // Prepare submission data
+      const submission = {
+        answers: Object.entries(answers).map(([questionId, answer]) => ({
+          question_id: questionId,
+          answer: answer,
+        })),
+        time_taken_seconds: timeTaken,
+      };
+
+      // Submit the attempt
+      const result = await submitAttemptAction(attemptId, submission);
+
+      // Store result in localStorage for result page
+      const examResult = {
+        attempt_id: attemptId,
+        exam_id: examId,
+        exam_title: exam.title,
+        answers,
+        time_taken: timeTaken,
+        submitted_at: new Date().toISOString(),
+        result,
+      };
+      localStorage.setItem(`exam_result_${examId}`, JSON.stringify(examResult));
+
+      enqueueSnackbar('Đã nộp bài thành công!', { variant: 'success' });
+
+      // Navigate to result page
+      navigate(buildRoute(ROUTES.EXAM_RESULT, { id: examId }));
+    } catch (error) {
+      // Error is already handled by the useApi hook
+    }
+  }, [attemptId, startTime, answers, examId, exam?.title, submitAttemptAction, enqueueSnackbar, navigate]);
 
   // Timer countdown
   useEffect(() => {
@@ -225,6 +197,60 @@ const ExamTakePage = () => {
   const answeredCount = Object.keys(answers).length;
   const unansweredCount = questions.length - answeredCount;
   const flaggedCount = flaggedQuestions.size;
+
+  // Show loading state while fetching exam
+  if (loadingExam) {
+    return (
+      <MainLayout>
+        <Box sx={{
+          bgcolor: 'background.default',
+          minHeight: '100vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}>
+          <LoadingSpinner />
+        </Box>
+      </MainLayout>
+    );
+  }
+
+  // Show error state if exam failed to load
+  if (examError) {
+    return (
+      <MainLayout>
+        <Box sx={{
+          bgcolor: 'background.default',
+          minHeight: '100vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          p: 4
+        }}>
+          <Typography color="error" align="center">
+            {examError}
+          </Typography>
+        </Box>
+      </MainLayout>
+    );
+  }
+
+  // Don't render if exam data is not available
+  if (!exam || !examStarted) {
+    return (
+      <MainLayout>
+        <Box sx={{
+          bgcolor: 'background.default',
+          minHeight: '100vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}>
+          <LoadingSpinner />
+        </Box>
+      </MainLayout>
+    );
+  }
 
   return (
     <MainLayout>
@@ -589,13 +615,14 @@ const ExamTakePage = () => {
           <Button onClick={() => setSubmitDialogOpen(false)} sx={{ fontSize: DS.typography.bodyMedium }}>
             Hủy
           </Button>
-          <Button 
-            onClick={handleSubmitConfirm} 
-            variant="contained" 
+          <Button
+            onClick={handleSubmitConfirm}
+            variant="contained"
             color="success"
+            disabled={submittingAttempt}
             sx={{ fontSize: DS.typography.bodyMedium }}
           >
-            Xác nhận nộp bài
+            {submittingAttempt ? 'Đang nộp bài...' : 'Xác nhận nộp bài'}
           </Button>
         </DialogActions>
       </Dialog>

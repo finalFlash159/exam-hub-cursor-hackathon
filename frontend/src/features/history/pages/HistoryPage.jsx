@@ -1,9 +1,9 @@
 /**
  * History Page - Table showing all past exam attempts
- * UI-only version with static data
+ * Connected to backend API
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -42,8 +42,15 @@ import { MainLayout } from '../../../components/layout';
 import { ROUTES, buildRoute } from '../../../config/routes';
 import { DESIGN_SYSTEM as DS } from '../../../config/designSystem';
 import { format } from 'date-fns';
+import { getExams, getExamAttempts } from '../../../api';
+import { useApi } from '../../../hooks/useApi';
+import { LoadingSpinner } from '../../../components/common';
 
-// Static mock history data
+// API functions
+const getExamsApi = (skip, limit) => getExams(skip, limit);
+const getExamAttemptsApi = (examId, skip, limit) => getExamAttempts(examId, skip, limit);
+
+// Mock history data for now (will be replaced with actual API aggregation)
 const mockHistory = [
   {
     id: 'attempt-001',
@@ -207,16 +214,40 @@ const HistoryPage = () => {
   const { enqueueSnackbar } = useSnackbar();
   const navigate = useNavigate();
   const { t } = useTranslation();
-  
+
+  // TODO: Replace with actual API call when user attempts endpoint is available
+  // For now, using mock data. In production, this should aggregate attempts from all user's exams
+  const [history, setHistory] = useState(mockHistory);
+  const [loading, setLoading] = useState(false);
+
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterDifficulty, setFilterDifficulty] = useState('all');
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
+  // Load history data (currently using mock data)
+  useEffect(() => {
+    const loadHistory = async () => {
+      setLoading(true);
+      try {
+        // TODO: Implement proper API call to get user attempts
+        // For now, just use mock data
+        setHistory(mockHistory);
+      } catch (error) {
+        console.error('Failed to load history:', error);
+        enqueueSnackbar('Không thể tải lịch sử thi', { variant: 'error' });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadHistory();
+  }, []);
+
   // Filter history
   const filteredHistory = useMemo(() => {
-    return mockHistory.filter((item) => {
+    return history.filter((item) => {
       const matchesSearch = item.exam_title?.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesStatus = filterStatus === 'all' || 
         (filterStatus === 'passed' && item.passed) ||
@@ -439,7 +470,13 @@ const HistoryPage = () => {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {paginatedHistory.length === 0 ? (
+                  {loading ? (
+                    <TableRow>
+                      <TableCell colSpan={7} align="center" sx={{ py: 4 }}>
+                        <LoadingSpinner />
+                      </TableCell>
+                    </TableRow>
+                  ) : paginatedHistory.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={7} align="center" sx={{ py: 4 }}>
                         <Typography color="text.secondary" sx={{ fontSize: DS.typography.bodyMedium }}>

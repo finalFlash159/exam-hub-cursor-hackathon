@@ -1,2 +1,0 @@
-// Exam integration tests
-

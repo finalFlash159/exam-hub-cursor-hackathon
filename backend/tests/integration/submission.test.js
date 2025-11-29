@@ -1,2 +1,0 @@
-// Submission integration tests
-

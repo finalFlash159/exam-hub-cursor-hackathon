@@ -1,0 +1,17 @@
+{
+  "name": "exam-hub-backend",
+  "version": "1.0.0",
+  "description": "Backend for Exam Hub application",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "test": "jest"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {},
+  "devDependencies": {}
+}
+

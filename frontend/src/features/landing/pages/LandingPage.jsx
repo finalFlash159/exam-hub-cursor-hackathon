@@ -101,15 +101,18 @@ const LandingPage = () => {
             <Stack direction="row" alignItems="center" justifyContent="space-between">
               <Stack direction="row" alignItems="center" spacing={1}>
                 <Box
-                  component="img"
-                  src="/exam-logo.png"
-                  alt="Exam Hub Logo"
                   sx={{
                     width: 40,
                     height: 40,
                     borderRadius: 2,
+                    bgcolor: '#3b82f6',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
                   }}
-                />
+                >
+                  <AutoAwesome sx={{ color: 'white', fontSize: 24 }} />
+                </Box>
                 <Typography variant="h6" fontWeight={700} color="#1f2937">
                   Exam Hub
                 </Typography>

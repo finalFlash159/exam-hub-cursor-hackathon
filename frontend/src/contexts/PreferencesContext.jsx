@@ -11,26 +11,40 @@ const DEFAULT_PREFERENCES = {
 export const PreferencesProvider = ({ children }) => {
   const [preferences, setPreferences] = useState(() => {
     // Load from localStorage on mount
-    const saved = localStorage.getItem('userPreferences');
-    if (saved) {
-      try {
-        return { ...DEFAULT_PREFERENCES, ...JSON.parse(saved) };
-      } catch (e) {
-        console.error('Failed to parse preferences:', e);
-        return DEFAULT_PREFERENCES;
+    try {
+      const saved = localStorage.getItem('userPreferences');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          return { ...DEFAULT_PREFERENCES, ...parsed };
+        } catch (e) {
+          console.error('Failed to parse preferences:', e);
+          // Clear corrupted data
+          localStorage.removeItem('userPreferences');
+          return DEFAULT_PREFERENCES;
+        }
       }
+      return DEFAULT_PREFERENCES;
+    } catch (e) {
+      console.error('Failed to access localStorage:', e);
+      return DEFAULT_PREFERENCES;
     }
-    return DEFAULT_PREFERENCES;
   });
 
   // Persist to localStorage whenever preferences change
   useEffect(() => {
-    localStorage.setItem('userPreferences', JSON.stringify(preferences));
-    
-    // Update i18n language
-    if (preferences.language) {
-      i18n.changeLanguage(preferences.language);
-      localStorage.setItem('userLanguage', preferences.language);
+    try {
+      localStorage.setItem('userPreferences', JSON.stringify(preferences));
+      
+      // Update i18n language
+      if (preferences.language && i18n) {
+        i18n.changeLanguage(preferences.language).catch(err => {
+          console.error('Failed to change language:', err);
+        });
+        localStorage.setItem('userLanguage', preferences.language);
+      }
+    } catch (e) {
+      console.error('Failed to persist preferences:', e);
     }
   }, [preferences]);
 

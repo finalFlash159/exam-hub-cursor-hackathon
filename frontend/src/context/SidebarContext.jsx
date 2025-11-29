@@ -11,8 +11,13 @@ export const SidebarProvider = ({ children }) => {
   // Collapsed state (persisted in localStorage)
   // Default: true (collapsed)
   const [collapsed, setCollapsed] = useState(() => {
-    const stored = localStorage.getItem('sidebarCollapsed');
-    return stored ? JSON.parse(stored) : true;
+    try {
+      const stored = localStorage.getItem('sidebarCollapsed');
+      return stored ? JSON.parse(stored) : true;
+    } catch (e) {
+      console.error('Failed to read sidebar state:', e);
+      return true;
+    }
   });
   
   // Hover state (temporary, not persisted)
@@ -25,7 +30,11 @@ export const SidebarProvider = ({ children }) => {
   const toggleSidebar = () => {
     setCollapsed(prev => {
       const newValue = !prev;
-      localStorage.setItem('sidebarCollapsed', JSON.stringify(newValue));
+      try {
+        localStorage.setItem('sidebarCollapsed', JSON.stringify(newValue));
+      } catch (e) {
+        console.error('Failed to persist sidebar state:', e);
+      }
       return newValue;
     });
   };

@@ -1,6 +1,6 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { ThemeProvider, CssBaseline } from '@mui/material';
+import { ThemeProvider, CssBaseline, Box } from '@mui/material';
 import { SnackbarProvider } from 'notistack';
 import { PreferencesProvider, usePreferences } from './contexts/PreferencesContext';
 import { SidebarProvider } from './context/SidebarContext';
@@ -17,6 +17,40 @@ import ExamResultPage from './features/exams/pages/ExamResultPage';
 import HistoryPage from './features/history/pages/HistoryPage';
 import ProfilePage from './features/profile/pages/ProfilePage';
 import SettingsPage from './features/settings/pages/SettingsPage';
+import FAQPage from './pages/FAQPage';
+import PricingPage from './pages/PricingPage';
+import SubjectsPage from './pages/SubjectsPage';
+
+// Loading component
+const LoadingFallback = () => (
+  <Box
+    sx={{
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      minHeight: '100vh',
+      bgcolor: '#f9fafb',
+    }}
+  >
+    <Box sx={{ textAlign: 'center' }}>
+      <Box
+        sx={{
+          width: 40,
+          height: 40,
+          border: '4px solid #e5e7eb',
+          borderTopColor: '#3b82f6',
+          borderRadius: '50%',
+          animation: 'spin 1s linear infinite',
+          margin: '0 auto',
+          '@keyframes spin': {
+            '0%': { transform: 'rotate(0deg)' },
+            '100%': { transform: 'rotate(360deg)' },
+          },
+        }}
+      />
+    </Box>
+  </Box>
+);
 
 /**
  * AppContent Component - Handles routing and theme switching
@@ -44,26 +78,28 @@ function AppContent() {
         }}
       >
         <Router>
-          <Routes>
-            {/* Public routes */}
-            <Route path={ROUTES.HOME} element={<LandingPage />} />
-            
-            {/* Main routes - all accessible without auth */}
-            <Route path={ROUTES.DASHBOARD} element={<DashboardPage />} />
-            <Route path={ROUTES.EXAMS} element={<ExamListPage />} />
-            <Route path={ROUTES.EXAM_CREATE} element={<ExamCreatePage />} />
-            <Route path={ROUTES.EXAM_TAKE} element={<ExamTakePage />} />
-            <Route path={ROUTES.EXAM_RESULT} element={<ExamResultPage />} />
-            <Route path={ROUTES.PROFILE} element={<ProfilePage />} />
-            <Route path={ROUTES.SETTINGS} element={<SettingsPage />} />
-            <Route path={ROUTES.HISTORY} element={<HistoryPage />} />
-            <Route path={ROUTES.FAQ} element={<div>FAQ - Coming Soon</div>} />
-            <Route path={ROUTES.PRICING} element={<div>Pricing - Coming Soon</div>} />
-            <Route path={ROUTES.SUBJECTS} element={<div>Subjects - Coming Soon</div>} />
+          <Suspense fallback={<LoadingFallback />}>
+            <Routes>
+              {/* Public routes */}
+              <Route path={ROUTES.HOME} element={<LandingPage />} />
+              
+              {/* Main routes - all accessible without auth */}
+              <Route path={ROUTES.DASHBOARD} element={<DashboardPage />} />
+              <Route path={ROUTES.EXAMS} element={<ExamListPage />} />
+              <Route path={ROUTES.EXAM_CREATE} element={<ExamCreatePage />} />
+              <Route path={ROUTES.EXAM_TAKE} element={<ExamTakePage />} />
+              <Route path={ROUTES.EXAM_RESULT} element={<ExamResultPage />} />
+              <Route path={ROUTES.PROFILE} element={<ProfilePage />} />
+              <Route path={ROUTES.SETTINGS} element={<SettingsPage />} />
+              <Route path={ROUTES.HISTORY} element={<HistoryPage />} />
+              <Route path={ROUTES.FAQ} element={<FAQPage />} />
+              <Route path={ROUTES.PRICING} element={<PricingPage />} />
+              <Route path={ROUTES.SUBJECTS} element={<SubjectsPage />} />
 
-            {/* Default redirect */}
-            <Route path="*" element={<Navigate to={ROUTES.HOME} replace />} />
-          </Routes>
+              {/* Default redirect */}
+              <Route path="*" element={<Navigate to={ROUTES.HOME} replace />} />
+            </Routes>
+          </Suspense>
         </Router>
       </SnackbarProvider>
     </ThemeProvider>

@@ -13,16 +13,18 @@ import { ENDPOINTS } from './config';
  */
 export const uploadFile = async (file, folderId = null) => {
   try {
+    console.log('UploadFile called with:', file.name, file.size, file.type);
+
     const formData = new FormData();
     formData.append('file', file);
+
+    console.log('FormData created, file appended');
 
     const config = {
       method: 'POST',
       url: ENDPOINTS.UPLOAD,
       data: formData,
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
+      // Don't set Content-Type for FormData - let browser set it automatically
     };
 
     // Add folder_id as query parameter if provided
@@ -30,9 +32,12 @@ export const uploadFile = async (file, folderId = null) => {
       config.params = { folder_id: folderId };
     }
 
+    console.log('Making API request to:', ENDPOINTS.UPLOAD);
+
     return await apiRequest(config);
   } catch (error) {
     console.error('Failed to upload file:', error);
+    console.error('Error details:', error.response?.data || error.message);
     throw error;
   }
 };
@@ -93,3 +98,4 @@ export const deleteFile = async (fileId) => {
     throw error;
   }
 };
+

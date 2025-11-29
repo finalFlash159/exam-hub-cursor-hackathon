@@ -34,18 +34,20 @@ import { MainLayout } from '../../../components/layout';
 import { ROUTES, buildRoute } from '../../../config/routes';
 import { DESIGN_SYSTEM as DS } from '../../../config/designSystem';
 import { format } from 'date-fns';
+import { vi } from 'date-fns/locale';
 import { getDashboardStats, getExams } from '../../../api';
 import { LoadingSpinner } from '../../../components/common';
 
-// Default fallback data
+// Default fallback data matching backend response structure
 const defaultDashboardStats = {
   total_exams: 0,
-  completed_exams: 0,
-  average_score: 0,
-  in_progress_exams: 0,
-  uploaded_files_count: 0,
-  passed_exams: 0,
-  highest_score: 0
+  total_folders: 0,
+  total_attempts: 0,
+  total_files: 0,
+  published_exams: 0,
+  draft_exams: 0,
+  completed_attempts: 0,
+  average_score: 0.0
 };
 
 const DashboardPage = () => {
@@ -66,8 +68,29 @@ const DashboardPage = () => {
       try {
         // Load dashboard statistics
         setLoadingStats(true);
-        const stats = await getDashboardStats();
-        setDashboardStats(stats);
+        const response = await getDashboardStats();
+        // Extract stats from response
+        setDashboardStats(response.stats || defaultDashboardStats);
+        // If there are recent exams in the dashboard response, use them
+        if (response.recent_exams && response.recent_exams.length > 0) {
+          setRecentExams(response.recent_exams);
+          setExamsError(null);
+          setLoadingExams(false);
+        } else {
+          // Load exams separately if not in dashboard response
+          try {
+            setLoadingExams(true);
+            const exams = await getExams(0, 5);
+            setRecentExams(exams);
+            setExamsError(null);
+          } catch (error) {
+            console.error('Failed to load recent exams:', error);
+            setExamsError('Không thể tải danh sách đề thi');
+            setRecentExams([]);
+          } finally {
+            setLoadingExams(false);
+          }
+        }
         setStatsError(null);
       } catch (error) {
         console.error('Failed to load dashboard stats:', error);
@@ -76,27 +99,13 @@ const DashboardPage = () => {
       } finally {
         setLoadingStats(false);
       }
-
-      try {
-        // Load recent exams (limit to 5)
-        setLoadingExams(true);
-        const exams = await getExams(0, 5);
-        setRecentExams(exams);
-        setExamsError(null);
-      } catch (error) {
-        console.error('Failed to load recent exams:', error);
-        setExamsError('Không thể tải danh sách đề thi');
-        setRecentExams([]);
-      } finally {
-        setLoadingExams(false);
-      }
     };
 
     loadDashboardData();
   }, []);
 
   const getCurrentDate = () => {
-    return format(new Date(), 'EEEE, dd MMMM yyyy', { locale: 'vi' });
+    return format(new Date(), 'EEEE, dd MMMM yyyy', { locale: vi });
   };
 
   const getDifficultyLabel = (difficulty) => {
@@ -431,7 +440,7 @@ const DashboardPage = () => {
                       fontSize: DS.typography.pageTitle,
                     }}
                   >
-                    {dashboardStats.completed_exams || 0}
+                    {dashboardStats.completed_attempts || 0}
                   </Typography>
                 </Paper>
               </Grid>
@@ -485,7 +494,7 @@ const DashboardPage = () => {
                       mb: 1,
                     }}
                   >
-                    Đang làm
+                    Tổng bài thi
                   </Typography>
                   <Typography
                     variant="h4"
@@ -495,7 +504,7 @@ const DashboardPage = () => {
                       fontSize: DS.typography.pageTitle,
                     }}
                   >
-                    {dashboardStats.in_progress_exams || 0}
+                    {dashboardStats.total_attempts || 0}
                   </Typography>
                 </Paper>
               </Grid>
@@ -626,7 +635,7 @@ const DashboardPage = () => {
                           fontSize: DS.typography.bodySmall,
                         }}
                       >
-                        {exam.subject}
+                        {exam.subject || exam.description || 'Chưa có mô tả'}
                       </Typography>
                     </TableCell>
                     <TableCell>
@@ -636,7 +645,7 @@ const DashboardPage = () => {
                           fontSize: DS.typography.bodySmall,
                         }}
                       >
-                        {exam.total_questions}
+                        {exam.question_count || 0}
                       </Typography>
                     </TableCell>
                     <TableCell>
@@ -646,7 +655,7 @@ const DashboardPage = () => {
                           fontSize: DS.typography.bodySmall,
                         }}
                       >
-                        {exam.duration_minutes} phút
+                        {exam.duration || 0} phút
                       </Typography>
                     </TableCell>
                     <TableCell>
@@ -656,13 +665,13 @@ const DashboardPage = () => {
                           px: 1,
                           py: 0.25,
                           borderRadius: 0.5,
-                          bgcolor: `${getDifficultyColor(exam.difficulty)}.100`,
-                          color: `${getDifficultyColor(exam.difficulty)}.700`,
+                          bgcolor: `${getDifficultyColor(exam.difficulty || 'medium')}.100`,
+                          color: `${getDifficultyColor(exam.difficulty || 'medium')}.700`,
                           fontSize: DS.typography.bodyXSmall,
                           fontWeight: 600,
                         }}
                       >
-                        {getDifficultyLabel(exam.difficulty)}
+                        {getDifficultyLabel(exam.difficulty || 'medium')}
                       </Box>
                     </TableCell>
                     <TableCell>

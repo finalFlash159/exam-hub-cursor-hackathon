@@ -21,3 +21,4 @@ export const ENDPOINTS = {
   FOLDERS: '/api/folders',
   UPLOAD: '/api/upload',
 };
+

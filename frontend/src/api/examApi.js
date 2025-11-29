@@ -226,3 +226,49 @@ export const getExamAttempts = async (examId, skip = 0, limit = 100) => {
     throw error;
   }
 };
+
+/**
+ * Get attempt history for current user
+ * @param {number} skip - Number of records to skip
+ * @param {number} limit - Maximum number of records to return
+ * @returns {Promise<Array>} List of attempts
+ */
+export const getAttemptHistory = async (skip = 0, limit = 100) => {
+  try {
+    return await apiRequest({
+      method: 'GET',
+      url: `${ENDPOINTS.EXAMS}/attempts/history`,
+      params: { skip, limit },
+    });
+  } catch (error) {
+    console.error('Failed to fetch attempt history:', error);
+    throw error;
+  }
+};
+
+/**
+ * Extract questions from uploaded file
+ * @param {number} fileId - File ID
+ * @param {string} questionType - Type of questions to extract
+ * @param {number} numQuestions - Number of questions to extract
+ * @param {string} difficulty - Difficulty level (easy, medium, hard)
+ * @returns {Promise<Array>} List of extracted questions
+ */
+export const extractQuestionsFromFile = async (fileId, questionType = 'mcq', numQuestions = 10, difficulty = 'medium') => {
+  try {
+    return await apiRequest({
+      method: 'POST',
+      url: `${ENDPOINTS.EXAMS}/extract-questions`,
+      params: {
+        file_id: fileId,
+        question_type: questionType,
+        num_questions: numQuestions,
+        difficulty: difficulty,
+      },
+    });
+  } catch (error) {
+    console.error(`Failed to extract questions from file ${fileId}:`, error);
+    throw error;
+  }
+};
+

@@ -44,7 +44,8 @@ import { useSnackbar } from 'notistack';
 import { MainLayout } from '../../../components/layout';
 import { ROUTES } from '../../../config/routes';
 import { DESIGN_SYSTEM as DS } from '../../../config/designSystem';
-import { createExam, addQuestion } from '../../../api';
+import { createExam, addQuestion, extractQuestionsFromFile } from '../../../api';
+import { uploadFile } from '../../../api/uploadApi';
 import { useApi } from '../../../hooks/useApi';
 
 // API functions
@@ -67,6 +68,7 @@ const ExamCreatePage = () => {
   // Step 1: Method selection
   const [method, setMethod] = useState(''); // 'file', 'text', 'manual'
   const [selectedFile, setSelectedFile] = useState(null);
+  const [uploadedFileId, setUploadedFileId] = useState(null);
   const [textInput, setTextInput] = useState('');
   
   // Step 2: Exam configuration
@@ -78,23 +80,96 @@ const ExamCreatePage = () => {
   const [timeLimit, setTimeLimit] = useState(60);
   const [generatedQuestions, setGeneratedQuestions] = useState([]);
   const [hasGeneratedQuestions, setHasGeneratedQuestions] = useState(false);
+  const [generatingQuestions, setGeneratingQuestions] = useState(false);
   
   // Step 3: Manual questions
   const [manualQuestions, setManualQuestions] = useState([]);
+  const [defaultQuestionType, setDefaultQuestionType] = useState('mcq');
 
-  const handleFileSelect = (event) => {
+  const handleFileSelect = async (event) => {
     const file = event.target.files[0];
     if (file) {
+      console.log('Selected file:', file.name, 'Size:', file.size, 'Type:', file.type);
       setSelectedFile(file);
-      enqueueSnackbar(`Đã chọn file: ${file.name}`, { variant: 'info' });
+      try {
+        // Upload file immediately
+        console.log('Starting file upload...');
+        const uploadResult = await uploadFile(file);
+        console.log('Upload result:', uploadResult);
+        setUploadedFileId(uploadResult.file.id);
+        enqueueSnackbar(`Đã upload file: ${file.name}`, { variant: 'success' });
+      } catch (error) {
+        console.error('Upload error:', error);
+        console.error('Error response:', error.response?.data);
+        enqueueSnackbar('Lỗi khi upload file', { variant: 'error' });
+        setSelectedFile(null);
+      }
     }
   };
 
   const handleGenerateQuestions = async () => {
-    // For now, show a message that AI generation is not implemented
-    // In a real implementation, this would call an AI service API
-    enqueueSnackbar('Tính năng tạo câu hỏi bằng AI sẽ được triển khai sau!', { variant: 'info' });
-    setHasGeneratedQuestions(true);
+    try {
+      setGeneratingQuestions(true);
+
+      let questions = [];
+
+      if (method === 'file' && uploadedFileId) {
+        // Extract questions from uploaded file
+        questions = await extractQuestionsFromFile(uploadedFileId, defaultQuestionType, numQuestions, difficulty);
+      } else if (method === 'text' && textInput.trim()) {
+        // For text input, we'll create mock questions for now
+        // In a real implementation, this would send text to AI service
+        questions = [];
+        for (let i = 0; i < numQuestions; i++) {
+          if (defaultQuestionType === 'mcq') {
+            questions.push({
+              question_text: `Câu hỏi ${i+1} từ nội dung: ${textInput.substring(0, 50)}...`,
+              question_type: 'mcq',
+              options: [`Đáp án A cho câu ${i+1}`, `Đáp án B cho câu ${i+1}`, `Đáp án C cho câu ${i+1}`, `Đáp án D cho câu ${i+1}`],
+              correct_answer: 'A',
+              explanation: `Giải thích cho câu hỏi ${i+1}`,
+              difficulty: 'medium',
+              points: 1
+            });
+          } else if (defaultQuestionType === 'true_false') {
+            questions.push({
+              question_text: `Câu hỏi đúng/sai ${i+1} từ nội dung: ${textInput.substring(0, 50)}...`,
+              question_type: 'true_false',
+              options: ['Đúng', 'Sai'],
+              correct_answer: 'Đúng',
+              explanation: `Giải thích cho câu hỏi ${i+1}`,
+              difficulty: 'medium',
+              points: 1
+            });
+          } else if (defaultQuestionType === 'short_answer') {
+            questions.push({
+              question_text: `Câu hỏi trả lời ngắn ${i+1} từ nội dung: ${textInput.substring(0, 50)}...`,
+              question_type: 'short_answer',
+              correct_answer: `Đáp án cho câu hỏi ${i+1}`,
+              explanation: `Giải thích cho câu hỏi ${i+1}`,
+              difficulty: 'medium',
+              points: 2
+            });
+          } else if (defaultQuestionType === 'essay') {
+            questions.push({
+              question_text: `Câu hỏi tự luận ${i+1} từ nội dung: ${textInput.substring(0, 50)}...`,
+              question_type: 'essay',
+              explanation: `Hướng dẫn chấm điểm cho bài tự luận ${i+1}`,
+              difficulty: 'medium',
+              points: 5
+            });
+          }
+        }
+      }
+
+      setGeneratedQuestions(questions);
+      setHasGeneratedQuestions(true);
+      enqueueSnackbar(`Đã tạo ${questions.length} câu hỏi thành công!`, { variant: 'success' });
+    } catch (error) {
+      enqueueSnackbar('Có lỗi xảy ra khi tạo câu hỏi', { variant: 'error' });
+    } finally {
+      setGeneratingQuestions(false);
+    }
   };
 
   const handleDeleteQuestion = (questionId) => {
@@ -106,9 +181,9 @@ const ExamCreatePage = () => {
     const newQuestion = {
       id: `q-manual-${Date.now()}`,
       question_text: '',
-      question_type: 'multiple_choice',
-      options: ['', '', '', ''],
-      correct_answer: 'A',
+      question_type: defaultQuestionType,
+      options: defaultQuestionType === 'mcq' ? ['', '', '', ''] : defaultQuestionType === 'true_false' ? ['Đúng', 'Sai'] : null,
+      correct_answer: defaultQuestionType === 'mcq' ? 'A' : defaultQuestionType === 'true_false' ? 'Đúng' : '',
       explanation: '',
       difficulty: 'medium',
       points: 1
@@ -117,9 +192,127 @@ const ExamCreatePage = () => {
   };
 
   const handleUpdateManualQuestion = (questionId, field, value) => {
-    setManualQuestions(manualQuestions.map(q => 
-      q.id === questionId ? { ...q, [field]: value } : q
-    ));
+    setManualQuestions(manualQuestions.map(q => {
+      if (q.id === questionId) {
+        const updatedQuestion = { ...q, [field]: value };
+
+        // Auto-update options and correct_answer when question_type changes
+        if (field === 'question_type') {
+          switch (value) {
+            case 'mcq':
+              updatedQuestion.options = ['', '', '', ''];
+              updatedQuestion.correct_answer = 'A';
+              break;
+            case 'true_false':
+              updatedQuestion.options = ['Đúng', 'Sai'];
+              updatedQuestion.correct_answer = 'Đúng';
+              break;
+            case 'short_answer':
+              updatedQuestion.options = null;
+              updatedQuestion.correct_answer = '';
+              break;
+            case 'essay':
+              updatedQuestion.options = null;
+              updatedQuestion.correct_answer = '';
+              break;
+          }
+        }
+
+        return updatedQuestion;
+      }
+      return q;
+    }));
+  };
+
+  const getQuestionTypeLabel = (type) => {
+    const labels = {
+      mcq: 'Trắc nghiệm',
+      true_false: 'Đúng/Sai',
+      short_answer: 'Trả lời ngắn',
+      essay: 'Tự luận'
+    };
+    return labels[type] || type;
+  };
+
+  const renderQuestionInput = (question) => {
+    switch (question.question_type) {
+      case 'mcq':
+        return (
+          <Stack spacing={1}>
+            {['A', 'B', 'C', 'D'].map((option, optIndex) => (
+              <TextField
+                key={optIndex}
+                fullWidth
+                size="small"
+                placeholder={`Đáp án ${option}`}
+                value={question.options?.[optIndex] || ''}
+                onChange={(e) => {
+                  const newOptions = [...(question.options || ['', '', '', ''])];
+                  newOptions[optIndex] = e.target.value;
+                  handleUpdateManualQuestion(question.id, 'options', newOptions);
+                }}
+              />
+            ))}
+            <FormControl fullWidth size="small" sx={{ mt: 1 }}>
+              <InputLabel>Đáp án đúng</InputLabel>
+              <Select
+                value={question.correct_answer || 'A'}
+                label="Đáp án đúng"
+                onChange={(e) => handleUpdateManualQuestion(question.id, 'correct_answer', e.target.value)}
+              >
+                <MenuItem value="A">A</MenuItem>
+                <MenuItem value="B">B</MenuItem>
+                <MenuItem value="C">C</MenuItem>
+                <MenuItem value="D">D</MenuItem>
+              </Select>
+            </FormControl>
+          </Stack>
+        );
+
+      case 'true_false':
+        return (
+          <FormControl fullWidth size="small">
+            <InputLabel>Đáp án đúng</InputLabel>
+            <Select
+              value={question.correct_answer || 'Đúng'}
+              label="Đáp án đúng"
+              onChange={(e) => handleUpdateManualQuestion(question.id, 'correct_answer', e.target.value)}
+            >
+              <MenuItem value="Đúng">Đúng</MenuItem>
+              <MenuItem value="Sai">Sai</MenuItem>
+            </Select>
+          </FormControl>
+        );
+
+      case 'short_answer':
+        return (
+          <TextField
+            fullWidth
+            size="small"
+            placeholder="Đáp án đúng..."
+            value={question.correct_answer || ''}
+            onChange={(e) => handleUpdateManualQuestion(question.id, 'correct_answer', e.target.value)}
+            helperText="Nhập đáp án đúng cho câu hỏi"
+          />
+        );
+
+      case 'essay':
+        return (
+          <TextField
+            fullWidth
+            multiline
+            rows={3}
+            size="small"
+            placeholder="Hướng dẫn chấm điểm hoặc gợi ý..."
+            value={question.explanation || ''}
+            onChange={(e) => handleUpdateManualQuestion(question.id, 'explanation', e.target.value)}
+            helperText="Nhập hướng dẫn chấm điểm hoặc gợi ý cho bài tự luận"
+          />
+        );
+
+      default:
+        return null;
+    }
   };
 
   const handleNext = () => {
@@ -127,8 +320,8 @@ const ExamCreatePage = () => {
       enqueueSnackbar('Vui lòng chọn phương pháp tạo đề thi', { variant: 'warning' });
       return;
     }
-    if (activeStep === 0 && method === 'file' && !selectedFile) {
-      enqueueSnackbar('Vui lòng chọn file', { variant: 'warning' });
+    if (activeStep === 0 && method === 'file' && !uploadedFileId) {
+      enqueueSnackbar('Vui lòng upload file thành công', { variant: 'warning' });
       return;
     }
     if (activeStep === 0 && method === 'text' && !textInput.trim()) {
@@ -137,6 +330,14 @@ const ExamCreatePage = () => {
     }
     if (activeStep === 1 && !examTitle.trim()) {
       enqueueSnackbar('Vui lòng nhập tiêu đề đề thi', { variant: 'warning' });
+      return;
+    }
+    if (activeStep === 1 && method === 'manual' && manualQuestions.length === 0) {
+      enqueueSnackbar('Vui lòng thêm ít nhất một câu hỏi', { variant: 'warning' });
+      return;
+    }
+    if (activeStep === 1 && hasGeneratedQuestions && generatedQuestions.length === 0) {
+      enqueueSnackbar('Vui lòng tạo câu hỏi trước', { variant: 'warning' });
       return;
     }
     setActiveStep((prev) => prev + 1);
@@ -152,15 +353,32 @@ const ExamCreatePage = () => {
       const examData = {
         title: examTitle,
         description: examDescription,
-        subject,
+        duration: timeLimit,
+        total_marks: numQuestions * 1.0, // Default 1 mark per question
+        passing_marks: Math.ceil(numQuestions * 0.6), // 60% passing
         difficulty,
-        duration_minutes: timeLimit,
-        total_questions: numQuestions,
-        is_public: true, // Default to public
+        is_published: true, // Auto-publish so users can take the exam immediately
       };
 
       // Create the exam
       const createdExam = await createExamAction(examData);
+
+      // Add questions if we have manual questions
+      if (method === 'manual' && manualQuestions.length > 0) {
+        await Promise.all(
+          manualQuestions.map(question =>
+            addQuestionAction(createdExam.id, {
+              question_text: question.question_text,
+              question_type: question.question_type,
+              options: question.options,
+              correct_answer: question.correct_answer,
+              explanation: question.explanation,
+              difficulty: question.difficulty,
+              marks: question.points,
+            })
+          )
+        );
+      }
 
       // Add questions if we have generated questions
       if (hasGeneratedQuestions && generatedQuestions.length > 0) {
@@ -173,7 +391,7 @@ const ExamCreatePage = () => {
               correct_answer: question.correct_answer,
               explanation: question.explanation,
               difficulty: question.difficulty,
-              points: question.points,
+              marks: question.points,
             })
           )
         );
@@ -253,8 +471,9 @@ const ExamCreatePage = () => {
                     size="small"
                     fullWidth
                     sx={{ fontSize: DS.typography.bodySmall }}
+                    disabled={!selectedFile && !uploadedFileId}
                   >
-                    {selectedFile ? selectedFile.name : 'Chọn file'}
+                    {uploadedFileId ? '✅ Đã upload' : selectedFile ? 'Đang upload...' : 'Chọn file'}
                   </Button>
                 </label>
               </Box>
@@ -451,16 +670,35 @@ const ExamCreatePage = () => {
             </Select>
           </FormControl>
 
+          <FormControl fullWidth size="small">
+            <InputLabel>Loại câu hỏi mặc định</InputLabel>
+            <Select
+              value={defaultQuestionType}
+              label="Loại câu hỏi mặc định"
+              onChange={(e) => setDefaultQuestionType(e.target.value)}
+            >
+              <MenuItem value="mcq">Trắc nghiệm (Multiple Choice)</MenuItem>
+              <MenuItem value="true_false">Đúng/Sai (True/False)</MenuItem>
+              <MenuItem value="short_answer">Trả lời ngắn (Short Answer)</MenuItem>
+              <MenuItem value="essay">Tự luận (Essay)</MenuItem>
+            </Select>
+          </FormControl>
+
           {method !== 'manual' && (
             <Button
               variant="contained"
               onClick={handleGenerateQuestions}
-              disabled={loading || hasGeneratedQuestions}
-              startIcon={loading ? <CircularProgress size={16} /> : null}
+              disabled={
+                generatingQuestions ||
+                hasGeneratedQuestions ||
+                (method === 'file' && !uploadedFileId) ||
+                (method === 'text' && !textInput.trim())
+              }
+              startIcon={generatingQuestions ? <CircularProgress size={16} /> : null}
               fullWidth
               sx={{ mt: 1 }}
             >
-              {loading ? 'Đang tạo câu hỏi...' : hasGeneratedQuestions ? 'Đã tạo câu hỏi' : 'Tạo câu hỏi bằng AI'}
+              {generatingQuestions ? 'Đang tạo câu hỏi...' : hasGeneratedQuestions ? 'Đã tạo câu hỏi' : 'Tạo câu hỏi bằng AI'}
             </Button>
           )}
         </Stack>
@@ -495,10 +733,19 @@ const ExamCreatePage = () => {
                 ) : (
                   manualQuestions.map((question, index) => (
                     <Card key={question.id} sx={{ p: 2, border: '1px solid', borderColor: 'divider' }}>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                        <Typography sx={{ fontWeight: 600, fontSize: DS.typography.bodySmall }}>
-                          Câu {index + 1}
-                        </Typography>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Typography sx={{ fontWeight: 600, fontSize: DS.typography.bodySmall }}>
+                            Câu {index + 1}
+                          </Typography>
+                          <Chip
+                            label={getQuestionTypeLabel(question.question_type)}
+                            size="small"
+                            color="primary"
+                            variant="outlined"
+                            sx={{ fontSize: DS.typography.bodyXSmall, height: 20 }}
+                          />
+                        </Box>
                         <IconButton
                           size="small"
                           onClick={() => handleDeleteQuestion(question.id)}
@@ -507,37 +754,36 @@ const ExamCreatePage = () => {
                           <Delete sx={{ fontSize: 18 }} />
                         </IconButton>
                       </Box>
-                      <TextField
-                        fullWidth
-                        size="small"
-                        placeholder="Nhập câu hỏi..."
-                        value={question.question_text}
-                        onChange={(e) => handleUpdateManualQuestion(question.id, 'question_text', e.target.value)}
-                        sx={{ mb: 1 }}
-                      />
-                      <Stack spacing={1}>
-                        {['A', 'B', 'C', 'D'].map((option, optIndex) => (
-                          <TextField
-                            key={optIndex}
-                            fullWidth
-                            size="small"
-                            placeholder={`Đáp án ${option}`}
-                            value={question.options[optIndex] || ''}
-                            onChange={(e) => {
-                              const newOptions = [...question.options];
-                              newOptions[optIndex] = e.target.value;
-                              handleUpdateManualQuestion(question.id, 'options', newOptions);
-                            }}
-                          />
-                        ))}
-                      </Stack>
+                      <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
+                        <TextField
+                          fullWidth
+                          size="small"
+                          placeholder="Nhập câu hỏi..."
+                          value={question.question_text}
+                          onChange={(e) => handleUpdateManualQuestion(question.id, 'question_text', e.target.value)}
+                        />
+                        <FormControl size="small" sx={{ minWidth: 120 }}>
+                          <InputLabel>Loại</InputLabel>
+                          <Select
+                            value={question.question_type}
+                            label="Loại"
+                            onChange={(e) => handleUpdateManualQuestion(question.id, 'question_type', e.target.value)}
+                          >
+                            <MenuItem value="mcq">Trắc nghiệm</MenuItem>
+                            <MenuItem value="true_false">Đúng/Sai</MenuItem>
+                            <MenuItem value="short_answer">Trả lời ngắn</MenuItem>
+                            <MenuItem value="essay">Tự luận</MenuItem>
+                          </Select>
+                        </FormControl>
+                      </Box>
+                      {renderQuestionInput(question)}
                     </Card>
                   ))
                 )}
               </Stack>
             ) : (
               <Stack spacing={2}>
-                {loading ? (
+                {generatingQuestions ? (
                   <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
                     <CircularProgress />
                   </Box>
@@ -633,7 +879,8 @@ const ExamCreatePage = () => {
               Số lượng câu hỏi
             </Typography>
             <Typography sx={{ fontSize: DS.typography.bodyMedium }}>
-              {method === 'manual' ? manualQuestions.length : generatedQuestions.length} câu
+              {method === 'manual' ? manualQuestions.length :
+               hasGeneratedQuestions ? generatedQuestions.length : 0} câu
             </Typography>
           </Box>
           

@@ -20,6 +20,12 @@ apiClient.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    
+    // If sending FormData, remove Content-Type header to let browser set it automatically
+    if (config.data instanceof FormData) {
+      delete config.headers['Content-Type'];
+    }
+    
     return config;
   },
   (error) => {
@@ -90,3 +96,4 @@ export const apiRequest = async (config, retries = API_CONFIG.RETRY_ATTEMPTS) =>
 };
 
 export default apiClient;
+

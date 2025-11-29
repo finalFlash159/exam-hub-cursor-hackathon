@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Box,
   Typography,
@@ -43,100 +43,11 @@ import { LoadingSpinner } from '../../../components/common';
 // API functions
 const getAttemptApi = (attemptId) => getAttempt(attemptId);
 
-// Mock attempt data for now (will be replaced with actual API call)
-const mockAttemptData = {
-  id: 'exam-001',
-  title: 'Bài kiểm tra Toán học cơ bản',
-  subject: 'Toán học',
-  duration_minutes: 60,
-  questions: [
-    {
-      id: 'q-001',
-      question_text: 'Tính tổng: 2 + 2 = ?',
-      options: ['2', '3', '4', '5'],
-      correct_answer: '4',
-      explanation: 'Phép cộng cơ bản: 2 cộng 2 bằng 4',
-      points: 1
-    },
-    {
-      id: 'q-002',
-      question_text: 'Tính tích: 3 × 4 = ?',
-      options: ['10', '11', '12', '13'],
-      correct_answer: '12',
-      explanation: 'Phép nhân: 3 nhân 4 bằng 12',
-      points: 1
-    },
-    {
-      id: 'q-003',
-      question_text: 'Giải phương trình: x + 5 = 10',
-      options: ['x = 3', 'x = 4', 'x = 5', 'x = 6'],
-      correct_answer: 'x = 5',
-      explanation: 'x = 10 - 5 = 5',
-      points: 2
-    },
-    {
-      id: 'q-004',
-      question_text: 'Tính diện tích hình chữ nhật có chiều dài 5cm và chiều rộng 3cm',
-      options: ['8 cm²', '15 cm²', '16 cm²', '20 cm²'],
-      correct_answer: '15 cm²',
-      explanation: 'Diện tích = dài × rộng = 5 × 3 = 15 cm²',
-      points: 2
-    },
-    {
-      id: 'q-005',
-      question_text: 'Tính đạo hàm của hàm số f(x) = x²',
-      options: ['x', '2x', 'x²', '2x²'],
-      correct_answer: '2x',
-      explanation: 'Đạo hàm của x² là 2x',
-      points: 3
-    },
-    {
-      id: 'q-006',
-      question_text: 'Tính tích phân ∫x dx',
-      options: ['x²/2', 'x²', 'x', '2x'],
-      correct_answer: 'x²/2',
-      explanation: 'Tích phân của x là x²/2',
-      points: 3
-    },
-    {
-      id: 'q-007',
-      question_text: 'Tìm giá trị của sin(90°)',
-      options: ['0', '0.5', '1', '√2/2'],
-      correct_answer: '1',
-      explanation: 'sin(90°) = 1',
-      points: 2
-    },
-    {
-      id: 'q-008',
-      question_text: 'Tính logarit cơ số 10 của 100',
-      options: ['1', '2', '10', '100'],
-      correct_answer: '2',
-      explanation: 'log₁₀(100) = 2 vì 10² = 100',
-      points: 2
-    },
-    {
-      id: 'q-009',
-      question_text: 'Tính căn bậc hai của 16',
-      options: ['2', '4', '8', '16'],
-      correct_answer: '4',
-      explanation: '√16 = 4 vì 4² = 16',
-      points: 1
-    },
-    {
-      id: 'q-010',
-      question_text: 'Tính giá trị của 2³',
-      options: ['4', '6', '8', '9'],
-      correct_answer: '8',
-      explanation: '2³ = 2 × 2 × 2 = 8',
-      points: 1
-    },
-  ]
-};
-
 const ExamResultPage = () => {
   const { id: examId } = useParams();
   const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
+  const [searchParams] = useSearchParams();
 
   // API hooks
   const { data: attemptData, loading: loadingAttempt, error: attemptError, execute: loadAttempt } = useApi(getAttemptApi);
@@ -146,56 +57,70 @@ const ExamResultPage = () => {
   const [windowSize, setWindowSize] = useState({ width: 0, height: 0 });
 
   useEffect(() => {
-    // Try to get attempt ID from localStorage first (set by ExamTakePage)
-    const storedResult = localStorage.getItem(`exam_result_${examId}`);
+    // Try to get attemptId from URL query parameter
+    const attemptIdParam = searchParams.get('attemptId');
 
-    if (storedResult) {
-      const parsedResult = JSON.parse(storedResult);
-      if (parsedResult.attempt_id) {
-        // Load attempt data from API
-        loadAttempt(parsedResult.attempt_id);
-      } else {
-        // Fallback to local calculation if no attempt ID
-        calculateResult(parsedResult.answers, parsedResult.time_taken);
-      }
+    if (attemptIdParam) {
+      // Load attempt data from API
+      console.log('Loading attempt from URL:', attemptIdParam);
+      loadAttempt(parseInt(attemptIdParam));
     } else {
-      // Fallback: generate mock result
-      const mockAnswers = {
-        'q-001': 'C', // Correct
-        'q-002': 'C', // Correct
-        'q-003': 'C', // Correct
-        'q-004': 'B', // Correct
-        'q-005': 'B', // Correct
-        'q-006': 'A', // Correct
-        'q-007': 'C', // Correct
-        'q-008': 'B', // Correct
-        'q-009': 'B', // Correct
-        'q-010': 'A', // Wrong (should be C)
-      };
-      calculateResult(mockAnswers, 3200);
+      // If no attemptId in URL, show error
+      console.error('No attemptId found in URL');
+      enqueueSnackbar('Không tìm thấy kết quả bài thi. Vui lòng làm bài trước.', { variant: 'warning' });
+      navigate(buildRoute(ROUTES.EXAM_DETAIL, { id: examId }));
     }
+  }, [examId, searchParams, loadAttempt, navigate, enqueueSnackbar]);
 
-    // Set window size for confetti
+  // Set window size for confetti
+  useEffect(() => {
     setWindowSize({ width: window.innerWidth, height: window.innerHeight });
-  }, [examId]);
+  }, []);
 
   // Handle attempt data when loaded from API
   useEffect(() => {
     if (attemptData) {
+      console.log('Attempt data loaded:', attemptData);
+      
       // Process the attempt data from API
       const score = attemptData.score || 0;
-      const totalQuestions = attemptData.total_questions || 0;
-      const correctAnswers = attemptData.correct_answers || 0;
-      const timeTaken = attemptData.time_taken_seconds || 0;
+      const percentage = attemptData.percentage || 0;
+      const passed = attemptData.passed || false;
+      
+      // Get time taken
+      const startedAt = attemptData.started_at ? new Date(attemptData.started_at) : null;
+      const completedAt = attemptData.completed_at ? new Date(attemptData.completed_at) : null;
+      const timeTaken = startedAt && completedAt 
+        ? Math.floor((completedAt - startedAt) / 1000) 
+        : 0;
 
-      const percentage = totalQuestions > 0 ? Math.round((correctAnswers / totalQuestions) * 100) : 0;
+      // Process questions and answers
+      const questions = attemptData.answers || [];
+      const correctAnswers = questions.filter(q => q.is_correct).length;
+      const totalQuestions = questions.length;
+      const incorrectAnswers = totalQuestions - correctAnswers;
 
       setResult({
-        score: percentage,
-        correctAnswers,
-        totalQuestions,
-        timeTaken,
-        passed: percentage >= 60, // Assume 60% is passing
+        exam_id: examId,
+        exam_title: attemptData.exam?.title || 'Bài thi',
+        score,
+        max_score: attemptData.exam?.total_marks || totalQuestions,
+        percentage: Math.round(percentage),
+        total_questions: totalQuestions,
+        correct_answers: correctAnswers,
+        incorrect_answers: incorrectAnswers,
+        time_taken: timeTaken,
+        passed,
+        completed_at: attemptData.completed_at,
+        questions: questions.map(answer => ({
+          id: answer.question_id,
+          question_text: answer.question?.question_text || '',
+          options: answer.question?.options || [],
+          correct_answer: answer.question?.correct_answer || '',
+          user_answer_letter: answer.answer_text || '',
+          is_correct: answer.is_correct || false,
+          explanation: answer.question?.explanation || null,
+        })),
       });
 
       // Show confetti for good scores
@@ -204,59 +129,7 @@ const ExamResultPage = () => {
         setTimeout(() => setShowConfetti(false), 5000);
       }
     }
-  }, [attemptData]);
-
-  const calculateResult = (answers, timeTaken) => {
-    let score = 0;
-    let maxScore = 0;
-    let correctCount = 0;
-    const questionsWithResults = mockExamData.questions.map((question) => {
-      maxScore += question.points;
-      const userAnswerLetter = answers[question.id];
-      const userAnswerIndex = userAnswerLetter ? userAnswerLetter.charCodeAt(0) - 65 : -1;
-      const userAnswer = userAnswerIndex >= 0 ? question.options[userAnswerIndex] : null;
-      const correctAnswerIndex = question.options.indexOf(question.correct_answer);
-      const isCorrect = userAnswer === question.correct_answer;
-      
-      if (isCorrect) {
-        score += question.points;
-        correctCount++;
-      }
-
-      return {
-        ...question,
-        user_answer: userAnswer,
-        user_answer_letter: userAnswerLetter,
-        is_correct: isCorrect,
-      };
-    });
-
-    const percentage = Math.round((score / maxScore) * 100);
-    const passed = percentage >= 70;
-
-    const calculatedResult = {
-      exam_id: examId,
-      exam_title: mockExamData.title,
-      score,
-      max_score: maxScore,
-      percentage,
-      total_questions: mockExamData.questions.length,
-      correct_answers: correctCount,
-      incorrect_answers: mockExamData.questions.length - correctCount,
-      time_taken: timeTaken || 3200,
-      passed,
-      completed_at: new Date().toISOString(),
-      questions: questionsWithResults,
-    };
-
-    setResult(calculatedResult);
-
-    // Show confetti if score >= 80%
-    if (percentage >= 80) {
-      setShowConfetti(true);
-      setTimeout(() => setShowConfetti(false), 5000);
-    }
-  };
+  }, [attemptData, examId]);
 
   const formatDuration = (seconds) => {
     const minutes = Math.floor(seconds / 60);

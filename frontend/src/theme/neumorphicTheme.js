@@ -139,6 +139,7 @@ const alpha = (color, opacity) => {
 // ========== THEME CONFIGURATION ==========
 
 export const neumorphicTheme = createTheme({
+  cssVariables: false,  // Disable CSS variables for MUI v7 compatibility
   palette: {
     mode: 'light',
     

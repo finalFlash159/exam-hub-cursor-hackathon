@@ -501,32 +501,32 @@ const ExamListPage = () => {
                           </TableCell>
                           <TableCell sx={{ py: 1, display: { xs: 'none', sm: 'table-cell' } }}>
                             <Typography sx={{ fontSize: DS.typography.bodySmall, color: 'text.secondary' }}>
-                              {exam.subject}
+                              {exam.subject || exam.description || 'Không có'}
                             </Typography>
                           </TableCell>
                           <TableCell align="center" sx={{ py: 1, display: { xs: 'none', md: 'table-cell' } }}>
                             <Typography sx={{ fontSize: DS.typography.bodySmall, color: 'text.secondary' }}>
-                              {exam.total_questions}
+                              {exam.question_count || 0}
                             </Typography>
                           </TableCell>
                           <TableCell align="center" sx={{ py: 1, display: { xs: 'none', md: 'table-cell' } }}>
                             <Typography sx={{ fontSize: DS.typography.bodySmall, color: 'text.secondary' }}>
-                              {exam.duration_minutes} phút
+                              {exam.duration || 0} phút
                             </Typography>
                           </TableCell>
                           <TableCell sx={{ py: 1 }}>
                             <Chip
-                              label={getDifficultyLabel(exam.difficulty)}
+                              label={getDifficultyLabel(exam.difficulty || 'medium')}
                               size="small"
-                              color={getDifficultyColor(exam.difficulty)}
+                              color={getDifficultyColor(exam.difficulty || 'medium')}
                               sx={{ fontSize: DS.typography.bodyXSmall, height: 20 }}
                             />
                           </TableCell>
                           <TableCell sx={{ py: 1 }}>
                             <Chip
-                              label={getStatusLabel(exam.status)}
+                              label={getStatusLabel(exam.is_published ? 'published' : 'draft')}
                               size="small"
-                              color={getStatusColor(exam.status)}
+                              color={getStatusColor(exam.is_published ? 'published' : 'draft')}
                               sx={{ fontSize: DS.typography.bodyXSmall, height: 20 }}
                             />
                           </TableCell>

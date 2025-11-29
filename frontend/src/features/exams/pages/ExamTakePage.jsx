@@ -51,7 +51,7 @@ const ExamTakePage = () => {
 
   // API hooks
   const { data: exam, loading: loadingExam, error: examError, execute: loadExam } = useApi(getExamApi);
-  const { execute: startAttemptAction } = useApi(startAttemptApi);
+  const { execute: startAttemptAction } = useApi(startAttemptApi, { showErrorToast: false });
   const { execute: submitAttemptAction, loading: submittingAttempt } = useApi(submitAttemptApi);
 
   // State
@@ -67,18 +67,52 @@ const ExamTakePage = () => {
 
   // Load exam data on component mount
   useEffect(() => {
+    console.log('Loading exam:', examId);
     loadExam(examId);
   }, [examId, loadExam]);
 
   // Initialize exam when data is loaded
   useEffect(() => {
     if (exam && !examStarted) {
+      console.log('Exam loaded:', exam);
       setQuestions(exam.questions || []);
-      setTimeRemaining(exam.duration_minutes * 60);
+      setTimeRemaining((exam.duration || 60) * 60); // Default 60 minutes
       setExamStarted(true);
       setStartTime(Date.now());
+
+      // Start the exam attempt
+      startExamAttempt();
     }
   }, [exam, examStarted]);
+
+  const startExamAttempt = useCallback(async () => {
+    try {
+      const attemptData = {
+        student_name: 'Anonymous Student', // In a real app, get from user context
+        student_email: null,
+      };
+
+      console.log('Starting exam attempt for exam:', examId);
+      console.log('Attempt data:', attemptData);
+
+      const attempt = await startAttemptAction(examId, attemptData);
+      console.log('Attempt created successfully:', attempt);
+
+      if (attempt && attempt.id) {
+        setAttemptId(attempt.id);
+        enqueueSnackbar('Bắt đầu làm bài!', { variant: 'info' });
+      } else {
+        throw new Error('Invalid attempt response');
+      }
+    } catch (error) {
+      console.error('Error starting exam attempt:', error);
+      console.error('Error details:', error.response?.data || error.message);
+
+      // Don't show duplicate error toasts
+      enqueueSnackbar('Lỗi khi bắt đầu làm bài. Vui lòng thử lại.', { variant: 'error' });
+      navigate(buildRoute(ROUTES.EXAM_DETAIL, { id: examId }));
+    }
+  }, [examId, startAttemptAction, enqueueSnackbar, navigate]);
 
   const handleSubmit = useCallback(async () => {
     if (!attemptId) {
@@ -92,31 +126,20 @@ const ExamTakePage = () => {
       // Prepare submission data
       const submission = {
         answers: Object.entries(answers).map(([questionId, answer]) => ({
-          question_id: questionId,
-          answer: answer,
+          question_id: parseInt(questionId),
+          answer_text: answer,
         })),
-        time_taken_seconds: timeTaken,
       };
 
       // Submit the attempt
       const result = await submitAttemptAction(attemptId, submission);
 
-      // Store result in localStorage for result page
-      const examResult = {
-        attempt_id: attemptId,
-        exam_id: examId,
-        exam_title: exam.title,
-        answers,
-        time_taken: timeTaken,
-        submitted_at: new Date().toISOString(),
-        result,
-      };
-      localStorage.setItem(`exam_result_${examId}`, JSON.stringify(examResult));
+      console.log('Submit result:', result);
 
       enqueueSnackbar('Đã nộp bài thành công!', { variant: 'success' });
 
-      // Navigate to result page
-      navigate(buildRoute(ROUTES.EXAM_RESULT, { id: examId }));
+      // Navigate to result page with attemptId
+      navigate(buildRoute(ROUTES.EXAM_RESULT, { id: examId }) + `?attemptId=${attemptId}`);
     } catch (error) {
       // Error is already handled by the useApi hook
     }

@@ -20,3 +20,4 @@ export const checkHealth = async () => {
     throw error;
   }
 };
+

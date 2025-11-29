@@ -11,6 +11,7 @@ import { darkTheme } from './theme/darkTheme';
 import LandingPage from './features/landing/pages/LandingPage';
 import DashboardPage from './features/dashboard/pages/DashboardPage';
 import ExamListPage from './features/exams/pages/ExamListPage';
+import ExamDetailPage from './features/exams/pages/ExamDetailPage';
 import ExamCreatePage from './features/exams/pages/ExamCreatePage';
 import ExamTakePage from './features/exams/pages/ExamTakePage';
 import ExamResultPage from './features/exams/pages/ExamResultPage';
@@ -87,6 +88,7 @@ function AppContent() {
               {/* Main routes - all accessible without auth */}
               <Route path={ROUTES.DASHBOARD} element={<DashboardPage />} />
               <Route path={ROUTES.EXAMS} element={<ExamListPage />} />
+              <Route path={ROUTES.EXAM_DETAIL} element={<ExamDetailPage />} />
               <Route path={ROUTES.EXAM_CREATE} element={<ExamCreatePage />} />
               <Route path={ROUTES.EXAM_TAKE} element={<ExamTakePage />} />
               <Route path={ROUTES.EXAM_RESULT} element={<ExamResultPage />} />

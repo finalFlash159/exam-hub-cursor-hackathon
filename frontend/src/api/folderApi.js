@@ -93,3 +93,4 @@ export const deleteFolder = async (folderId) => {
     throw error;
   }
 };
+

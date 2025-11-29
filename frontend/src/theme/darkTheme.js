@@ -68,6 +68,7 @@ const DARK_INFO = {
 };
 
 export const darkTheme = createTheme({
+  cssVariables: false,  // Disable CSS variables for MUI v7 compatibility
   palette: {
     mode: 'dark',
     primary: {

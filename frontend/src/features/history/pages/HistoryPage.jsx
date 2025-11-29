@@ -42,13 +42,14 @@ import { MainLayout } from '../../../components/layout';
 import { ROUTES, buildRoute } from '../../../config/routes';
 import { DESIGN_SYSTEM as DS } from '../../../config/designSystem';
 import { format } from 'date-fns';
-import { getExams, getExamAttempts } from '../../../api';
+import { getExams, getExamAttempts, getAttemptHistory } from '../../../api';
 import { useApi } from '../../../hooks/useApi';
 import { LoadingSpinner } from '../../../components/common';
 
 // API functions
 const getExamsApi = (skip, limit) => getExams(skip, limit);
 const getExamAttemptsApi = (examId, skip, limit) => getExamAttempts(examId, skip, limit);
+const getAttemptHistoryApi = (skip, limit) => getAttemptHistory(skip, limit);
 
 // Mock history data for now (will be replaced with actual API aggregation)
 const mockHistory = [
@@ -215,10 +216,21 @@ const HistoryPage = () => {
   const navigate = useNavigate();
   const { t } = useTranslation();
 
-  // TODO: Replace with actual API call when user attempts endpoint is available
-  // For now, using mock data. In production, this should aggregate attempts from all user's exams
-  const [history, setHistory] = useState(mockHistory);
+  // API hooks
+  const { data: examsData, loading: loadingExams, error: examsError, execute: loadExams } = useApi(getExamsApi);
+  const { execute: loadExamAttempts } = useApi(getExamAttemptsApi);
+  const { data: historyData, loading: loadingHistory, error: historyError, execute: loadAttemptHistory } = useApi(getAttemptHistoryApi);
+
+  // State for history data
+  const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(false);
+
+  // Debug state changes
+  const debugSetHistory = (newHistory) => {
+    console.log('setHistory called with:', newHistory);
+    console.log('New history length:', newHistory?.length || 0);
+    setHistory(newHistory);
+  };
 
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
@@ -226,36 +238,68 @@ const HistoryPage = () => {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
-  // Load history data (currently using mock data)
+  // Load history data from API
   useEffect(() => {
     const loadHistory = async () => {
       setLoading(true);
       try {
-        // TODO: Implement proper API call to get user attempts
-        // For now, just use mock data
-        setHistory(mockHistory);
+        console.log('Loading attempt history...');
+        const attempts = await loadAttemptHistory(0, 100);
+        console.log('Attempts loaded:', attempts);
+
+        if (!attempts || attempts.length === 0) {
+          debugSetHistory([]);
+          return;
+        }
+
+        // Transform API data to match component format
+        const transformedHistory = attempts.map(attempt => {
+          // Calculate time taken in seconds
+          const startedAt = attempt.started_at ? new Date(attempt.started_at) : null;
+          const completedAt = attempt.completed_at ? new Date(attempt.completed_at) : null;
+          const timeTaken = startedAt && completedAt
+            ? Math.floor((completedAt - startedAt) / 1000)
+            : 0;
+
+          return {
+            id: attempt.id,
+            exam_id: attempt.exam_id,
+            exam_title: attempt.exam_title || `Bài thi ${attempt.exam_id}`,
+            subject: 'Chưa xác định',
+            score: attempt.score || 0,
+            max_score: attempt.total_marks || 0,
+            percentage: Math.round(attempt.percentage || 0),
+            time_taken: timeTaken,
+            passed: attempt.passed || false,
+            completed_at: attempt.completed_at || attempt.created_at,
+            difficulty: attempt.exam_difficulty || 'medium'
+          };
+        });
+
+        debugSetHistory(transformedHistory);
       } catch (error) {
         console.error('Failed to load history:', error);
         enqueueSnackbar('Không thể tải lịch sử thi', { variant: 'error' });
+        debugSetHistory([]);
       } finally {
         setLoading(false);
       }
     };
 
     loadHistory();
-  }, []);
+  }, [loadAttemptHistory, enqueueSnackbar]); // Remove loadAttemptHistory from dependencies to prevent infinite re-renders
 
   // Filter history
   const filteredHistory = useMemo(() => {
     return history.filter((item) => {
       const matchesSearch = item.exam_title?.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesStatus = filterStatus === 'all' || 
+      const matchesStatus = filterStatus === 'all' ||
         (filterStatus === 'passed' && item.passed) ||
         (filterStatus === 'failed' && !item.passed);
       const matchesDifficulty = filterDifficulty === 'all' || item.difficulty === filterDifficulty;
       return matchesSearch && matchesStatus && matchesDifficulty;
     });
-  }, [searchQuery, filterStatus, filterDifficulty]);
+  }, [history, searchQuery, filterStatus, filterDifficulty]);
 
   // Calculate stats
   const stats = useMemo(() => {
@@ -308,13 +352,57 @@ const HistoryPage = () => {
   };
 
   const handleViewResult = (attempt) => {
-    navigate(buildRoute(ROUTES.EXAM_RESULT, { id: attempt.exam_id }));
+    // Navigate to result page with attemptId
+    navigate(buildRoute(ROUTES.EXAM_RESULT, { id: attempt.exam_id }) + `?attemptId=${attempt.id}`);
   };
+
+  // Debug: Show current state in console
+  console.log('HistoryPage state:', {
+    historyLength: history.length,
+    filteredLength: filteredHistory.length,
+    paginatedLength: paginatedHistory.length,
+    loading
+  });
 
   return (
     <MainLayout>
       <Box sx={{ bgcolor: 'background.default', minHeight: '100vh', py: DS.spacing.pageTop }}>
         <Box sx={{ maxWidth: 1400, mx: 'auto', px: DS.spacing.pageHorizontal }}>
+          {/* Debug Info */}
+          {/* <Box sx={{ mb: 2, p: 2, bgcolor: 'grey.100', borderRadius: 1 }}>
+            <Typography variant="h6">Debug Info:</Typography>
+            <Typography>History length: {history.length}</Typography>
+            <Typography>Filtered length: {filteredHistory.length}</Typography>
+            <Typography>Paginated length: {paginatedHistory.length}</Typography>
+            <Typography>Loading: {loading ? 'true' : 'false'}</Typography>
+            <Button
+              variant="contained"
+              onClick={async () => {
+                console.log('Manual API test...');
+                try {
+                  const response = await fetch('http://localhost:8000/api/exams/attempts/history?skip=0&limit=100');
+                  const data = await response.json();
+                  console.log('Manual fetch result:', data);
+                  alert(`API returned ${data.length} items`);
+                } catch (error) {
+                  console.error('Manual fetch error:', error);
+                  alert(`API error: ${error.message}`);
+                }
+              }}
+              sx={{ mt: 1 }}
+            >
+              Test API Manually
+            </Button>
+            {history.length > 0 && (
+              <Box sx={{ mt: 2 }}>
+                <Typography>Sample item:</Typography>
+                <pre style={{ fontSize: '12px', background: '#f5f5f5', padding: '8px', borderRadius: '4px' }}>
+                  {JSON.stringify(history[0], null, 2)}
+                </pre>
+              </Box>
+            )}
+          </Box> */}
+
           {/* Page Header */}
           <Box sx={{ mb: 3 }}>
             <Typography

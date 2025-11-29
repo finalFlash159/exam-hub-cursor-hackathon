@@ -20,6 +20,7 @@ import SettingsPage from './features/settings/pages/SettingsPage';
 import FAQPage from './pages/FAQPage';
 import PricingPage from './pages/PricingPage';
 import SubjectsPage from './pages/SubjectsPage';
+import Chatbot from './components/chatbot/Chatbot';
 
 // Loading component
 const LoadingFallback = () => (
@@ -100,6 +101,8 @@ function AppContent() {
               <Route path="*" element={<Navigate to={ROUTES.HOME} replace />} />
             </Routes>
           </Suspense>
+          {/* Global Chatbot - accessible from all pages */}
+          <Chatbot />
         </Router>
       </SnackbarProvider>
     </ThemeProvider>

@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 
 from app.core.config import settings
 from app.database.connection import init_db
-from app.api import exam, folder, upload, health, dashboard
+from app.api import exam, folder, upload, health, dashboard, chatbot
 
 
 @asynccontextmanager
@@ -46,6 +46,7 @@ app.include_router(exam.router, prefix="/api/exams", tags=["Exams"])
 app.include_router(folder.router, prefix="/api/folders", tags=["Folders"])
 app.include_router(upload.router, prefix="/api/upload", tags=["Upload"])
 app.include_router(dashboard.router, prefix="/api/dashboard", tags=["Dashboard"])
+app.include_router(chatbot.router, prefix="/api/chatbot", tags=["Chatbot"])
 
 
 @app.get("/")

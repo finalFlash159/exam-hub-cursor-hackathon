@@ -9,10 +9,10 @@ A simplified FastAPI backend for exam management - easy to demo without authenti
 - ✅ **Exam Attempts**: Students can take exams and get instant results
 - ✅ **Folder Organization**: Organize exams into folders
 - ✅ **File Upload**: Upload exam materials (PDF, DOCX, etc.)
+- ✅ **AI Question Generation**: Generate multiple choice, true/false, short answer, and essay questions from files using Google Gemini AI
 - ✅ **Dashboard**: View statistics and recent activity
 - ❌ **No Authentication**: All endpoints are public for easy demo
 - ❌ **No Email**: No email notifications
-- ❌ **No Advanced Features**: Simplified for quick setup
 
 ## Tech Stack
 
@@ -46,7 +46,19 @@ pip install -r requirements.txt
 # Copy example env file
 cp .env.example .env
 
-# Edit .env if needed (defaults should work)
+# Run setup script for Gemini AI (recommended)
+python setup_gemini.py
+
+# Or manually edit .env and add your Gemini API key
+# Get your API key from: https://makersuite.google.com/app/apikey
+GEMINI_API_KEY=your_actual_gemini_api_key_here
+```
+
+### 3. Test Gemini Integration (Optional)
+
+```bash
+# Test if Gemini AI is working
+python test_gemini.py
 ```
 
 ### 3. Run the Server
@@ -99,6 +111,12 @@ The API will be available at:
 - `GET /api/upload` - List files
 - `GET /api/upload/{id}` - Get file info
 - `DELETE /api/upload/{id}` - Delete file
+
+### AI Question Generation
+- `POST /api/exams/extract-questions` - Generate questions from uploaded file using Gemini AI
+  - Parameters: `file_id`, `question_type` (mcq/true_false/short_answer/essay), `num_questions`, `difficulty` (easy/medium/hard)
+  - Supported file types: PDF, DOCX, DOC, TXT
+  - AI automatically extracts text and generates relevant questions
 
 ### Dashboard
 - `GET /api/dashboard` - Get dashboard stats

@@ -1,7 +1,11 @@
 """Application configuration"""
 from pydantic_settings import BaseSettings
 from typing import List
+import os
+from dotenv import load_dotenv
 
+
+load_dotenv()
 
 class Settings(BaseSettings):
     """Application settings"""
@@ -18,6 +22,10 @@ class Settings(BaseSettings):
         "http://localhost:3000",
         "http://localhost:5173",
         "http://localhost:5174",
+        "http://localhost:5175",
+        "http://localhost:5176",
+        "http://localhost:5177",
+        "*",  # Allow all origins for debugging
     ]
     
     # File Upload
@@ -26,8 +34,9 @@ class Settings(BaseSettings):
     ALLOWED_EXTENSIONS: List[str] = ["pdf", "docx", "doc", "txt", "pptx", "jpg", "jpeg", "png"]
     
     # AI/GenAI
-    GEMINI_API_KEY: str = ""
-    GENAI_ENABLED: bool = False
+    GENAI_ENABLED: bool = True
+    GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY")
+    GEMINI_MODEL: str = "gemini-2.5-flash"
     
     class Config:
         env_file = ".env"

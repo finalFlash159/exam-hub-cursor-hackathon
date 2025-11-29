@@ -63,6 +63,7 @@ class ExamBase(BaseModel):
     duration: Optional[int] = Field(None, ge=1)  # in minutes
     total_marks: float = Field(default=0.0, ge=0)
     passing_marks: float = Field(default=0.0, ge=0)
+    difficulty: str = Field(default="medium", pattern="^(easy|medium|hard)$")
     is_published: bool = False
     folder_id: Optional[int] = None
 
@@ -118,6 +119,7 @@ class ExamListResponse(BaseModel):
     description: Optional[str]
     duration: Optional[int]
     total_marks: float
+    difficulty: str = "medium"
     is_published: bool
     folder_id: Optional[int]
     question_count: int = 0
@@ -187,7 +189,13 @@ class ExamAttemptListResponse(BaseModel):
     score: Optional[float]
     percentage: Optional[float]
     passed: Optional[bool]
+    started_at: Optional[str]
+    completed_at: Optional[str]
     created_at: datetime
+    # Additional fields for frontend display
+    exam_title: Optional[str] = None
+    exam_difficulty: Optional[str] = None
+    total_marks: Optional[float] = None
     
     class Config:
         from_attributes = True

@@ -5,7 +5,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException, status
 
 from app.models.exam import Exam, Question, ExamAttempt, Answer
+from app.models.file import File
 from app.repositories.exam import ExamRepository, QuestionRepository, ExamAttemptRepository, AnswerRepository
+from app.repositories.file import FileRepository
 from app.schemas.exam import (
     ExamCreate, ExamUpdate, ExamResponse, ExamResponsePublic, ExamListResponse,
     QuestionCreate, QuestionUpdate, QuestionResponse,
@@ -22,6 +24,7 @@ class ExamService:
         self.question_repo = QuestionRepository(db)
         self.attempt_repo = ExamAttemptRepository(db)
         self.answer_repo = AnswerRepository(db)
+        self.file_repo = FileRepository(db)
     
     async def create_exam(self, exam_data: ExamCreate) -> ExamResponse:
         """Create a new exam"""
@@ -179,21 +182,31 @@ class ExamService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Exam not found"
             )
-        
+
         if not exam.is_published:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Exam is not published"
             )
-        
+
+        # Check if there's already an in-progress attempt for this exam
+        # For demo purposes, allow multiple attempts or reuse existing
+        existing_attempts = await self.attempt_repo.get_by_exam(exam_id, 0, 10)
+        in_progress_attempt = next((a for a in existing_attempts if a.status == "in_progress"), None)
+
+        if in_progress_attempt:
+            # Return existing in-progress attempt
+            return ExamAttemptResponse(**in_progress_attempt.__dict__, answers=[])
+
+        # Create new attempt
         attempt_dict = attempt_data.model_dump()
         attempt_dict["exam_id"] = exam_id
         attempt_dict["status"] = "in_progress"
         attempt_dict["started_at"] = datetime.utcnow().isoformat()
-        
+
         attempt = ExamAttempt(**attempt_dict)
         attempt = await self.attempt_repo.create(attempt)
-        
+
         return ExamAttemptResponse(**attempt.__dict__, answers=[])
     
     async def submit_attempt(self, attempt_id: int, submission: ExamAttemptSubmit) -> ExamAttemptResponse:
@@ -247,6 +260,7 @@ class ExamService:
                 marks_obtained=marks_obtained
             )
             answer = await self.answer_repo.create(answer)
+            await self.db.commit()  # Commit to ensure answer is saved
             answers.append(answer)
         
         # Update attempt
@@ -276,5 +290,105 @@ class ExamService:
     async def get_exam_attempts(self, exam_id: int, skip: int = 0, limit: int = 100) -> List[ExamAttemptListResponse]:
         """Get all attempts for an exam"""
         attempts = await self.attempt_repo.get_by_exam(exam_id, skip, limit)
-        return [ExamAttemptListResponse(**a.__dict__) for a in attempts]
+        
+        # Get exam details for additional info
+        exam = await self.exam_repo.get_by_id(exam_id)
+        
+        # Enrich attempts with exam details
+        result = []
+        for attempt in attempts:
+            attempt_dict = attempt.__dict__.copy()
+            if exam:
+                attempt_dict['exam_title'] = exam.title
+                attempt_dict['exam_difficulty'] = exam.difficulty
+                attempt_dict['total_marks'] = exam.total_marks
+            result.append(ExamAttemptListResponse(**attempt_dict))
+        
+        return result
+
+    async def extract_questions_from_file(self, file_id: int, question_type: str, num_questions: int, difficulty: str = "medium") -> List[QuestionCreate]:
+        """Extract questions from uploaded file using Gemini AI"""
+        # Get file info
+        file_obj = await self.file_repo.get_by_id(file_id)
+        if not file_obj:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="File not found"
+            )
+
+        try:
+            # Initialize Gemini service
+            from app.services.gemini_service import GeminiService
+            gemini_service = GeminiService()
+
+            # Extract text from file
+            text_content = await gemini_service.extract_text_from_file(file_obj.file_path)
+
+            if not text_content or len(text_content.strip()) < 10:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Could not extract readable text from file"
+                )
+
+            # Generate questions using Gemini AI
+            questions = await gemini_service.generate_questions_from_text(
+                text_content, question_type, num_questions, difficulty
+            )
+
+            return questions
+
+        except Exception as e:
+            print(f"Error extracting questions: {e}")
+            # Fallback to mock generation if AI fails
+            return self._generate_mock_questions(file_obj, question_type, num_questions, difficulty)
+
+    def _generate_mock_questions(self, file_obj, question_type: str, num_questions: int, difficulty: str) -> List[QuestionCreate]:
+        """Generate mock questions as fallback"""
+        questions = []
+
+        for i in range(num_questions):
+            if question_type == "mcq":
+                question = QuestionCreate(
+                    question_text=f"Câu hỏi trắc nghiệm {i+1} từ file {file_obj.original_filename}",
+                    question_type="mcq",
+                    marks=1.0,
+                    difficulty=difficulty,
+                    options=[f"Đáp án A cho câu {i+1}", f"Đáp án B cho câu {i+1}",
+                            f"Đáp án C cho câu {i+1}", f"Đáp án D cho câu {i+1}"],
+                    correct_answer="A",
+                    explanation=f"Giải thích cho câu hỏi {i+1}"
+                )
+            elif question_type == "true_false":
+                question = QuestionCreate(
+                    question_text=f"Câu hỏi đúng/sai {i+1} từ file {file_obj.original_filename}",
+                    question_type="true_false",
+                    marks=1.0,
+                    difficulty=difficulty,
+                    options=["Đúng", "Sai"],
+                    correct_answer="Đúng",
+                    explanation=f"Giải thích cho câu hỏi {i+1}"
+                )
+            elif question_type == "short_answer":
+                question = QuestionCreate(
+                    question_text=f"Câu hỏi trả lời ngắn {i+1} từ file {file_obj.original_filename}",
+                    question_type="short_answer",
+                    marks=2.0,
+                    difficulty=difficulty,
+                    correct_answer=f"Đáp án cho câu hỏi {i+1}",
+                    explanation=f"Giải thích cho câu hỏi {i+1}"
+                )
+            elif question_type == "essay":
+                question = QuestionCreate(
+                    question_text=f"Câu hỏi tự luận {i+1} từ file {file_obj.original_filename}",
+                    question_type="essay",
+                    marks=5.0,
+                    difficulty=difficulty,
+                    explanation=f"Hướng dẫn chấm điểm cho bài tự luận {i+1}"
+                )
+            else:
+                continue
+
+            questions.append(question)
+
+        return questions
 

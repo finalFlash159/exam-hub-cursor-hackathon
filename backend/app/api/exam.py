@@ -1,6 +1,6 @@
 """Exam endpoints"""
 from typing import List, Union
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.connection import get_db
@@ -81,6 +81,19 @@ async def add_question(
     return await service.add_question(exam_id, question_data)
 
 
+@router.post("/extract-questions", response_model=List[QuestionCreate])
+async def extract_questions_from_file(
+    file_id: int,
+    question_type: str = Query("mcq", pattern="^(mcq|true_false|short_answer|essay)$"),
+    num_questions: int = Query(10, ge=1, le=50),
+    difficulty: str = Query("medium", pattern="^(easy|medium|hard)$"),
+    db: AsyncSession = Depends(get_db)
+):
+    """Extract questions from uploaded file using Gemini AI"""
+    service = ExamService(db)
+    return await service.extract_questions_from_file(file_id, question_type, num_questions, difficulty)
+
+
 @router.put("/{exam_id}/questions/{question_id}", response_model=QuestionResponse)
 async def update_question(
     exam_id: int,
@@ -126,6 +139,44 @@ async def submit_attempt(
     """Submit an exam attempt"""
     service = ExamService(db)
     return await service.submit_attempt(attempt_id, submission)
+
+
+@router.get("/attempts/history", response_model=List[ExamAttemptListResponse])
+async def get_user_attempt_history(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get attempt history for current user (simplified - returns all attempts)"""
+    # In a real app, this would filter by user ID from authentication
+    service = ExamService(db)
+
+    try:
+        # Get all exams first
+        exams = await service.get_all_exams(0, 1000)
+
+        if not exams:
+            return []  # Return empty list if no exams exist
+
+        # Get all attempts
+        all_attempts = []
+        for exam in exams:
+            try:
+                exam_attempts = await service.get_exam_attempts(exam.id, 0, 1000)
+                all_attempts.extend(exam_attempts)
+            except Exception as e:
+                print(f"Error loading attempts for exam {exam.id}: {e}")
+                continue
+
+        # Sort by creation date (newest first) and apply pagination
+        all_attempts.sort(key=lambda x: x.created_at, reverse=True)
+        return all_attempts[skip:skip + limit]
+    except Exception as e:
+        print(f"Error in get_user_attempt_history: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to load attempt history: {str(e)}"
+        )
 
 
 @router.get("/attempts/{attempt_id}", response_model=ExamAttemptResponse)

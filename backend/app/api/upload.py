@@ -1,6 +1,6 @@
 """Upload endpoints"""
 from typing import List, Optional
-from fastapi import APIRouter, Depends, UploadFile, File, Query
+from fastapi import APIRouter, Depends, UploadFile, File, Query, Request, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.connection import get_db
@@ -12,11 +12,24 @@ router = APIRouter()
 
 @router.post("", response_model=FileUploadResponse, status_code=201)
 async def upload_file(
+    request: Request,
     file: UploadFile = File(...),
     folder_id: Optional[int] = Query(None),
     db: AsyncSession = Depends(get_db)
 ):
     """Upload a file"""
+    print(f"📤 Upload request received")
+    print(f"Content-Type: {request.headers.get('content-type')}")
+    print(f"File: {file.filename if file else 'None'}")
+    print(f"File content type: {file.content_type if file else 'None'}")
+    print(f"Folder ID: {folder_id}")
+    
+    if not file or not file.filename:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No file provided"
+        )
+    
     service = UploadService(db)
     file_response = await service.upload_file(file, folder_id)
     return FileUploadResponse(

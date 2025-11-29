@@ -13,8 +13,9 @@ class Exam(BaseModel):
     duration = Column(Integer, nullable=True)  # in minutes
     total_marks = Column(Float, default=0.0)
     passing_marks = Column(Float, default=0.0)
+    difficulty = Column(String(20), default="medium")  # easy, medium, hard
     is_published = Column(Boolean, default=False)
-    
+
     # Foreign keys
     folder_id = Column(Integer, ForeignKey("folders.id", ondelete="SET NULL"), nullable=True)
     

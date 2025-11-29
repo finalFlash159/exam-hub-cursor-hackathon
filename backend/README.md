@@ -30,8 +30,9 @@ backend/
 
 ## API Endpoints
 
-- `/api/auth` - Authentication
-- `/api/users` - User management
+> **Note:** This is a simplified version for hackathon demo - no authentication required!
+
+- `/api/users` - User management (simplified)
 - `/api/exams` - Exam management
 - `/api/questions` - Question management
 - `/api/submissions` - Exam submissions
